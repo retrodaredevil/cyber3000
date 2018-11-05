@@ -1,4 +1,5 @@
 import grp
+import os
 import pwd
 import re
 import subprocess
@@ -8,6 +9,8 @@ from pathlib import Path
 Possibly use this solution to make this work in windows:
 https://stackoverflow.com/a/16529231/5434860
 '''
+
+ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
 
 
 def get_users():
@@ -195,8 +198,89 @@ def log_password_history():
         print()
 
 
-def log_lockout():  # TODO
+def log_lockout_policy():
     path = Path("/etc/pam.d/common-auth")
+    with path.open() as f:
+        lockout_line = None
+        for line in f.readlines():
+            if line.startswith("auth required pam_tally2.so"):
+                lockout_line = line
+                break
+        print(path)
+        if lockout_line is not None:
+            print("Account policy line found: '{}'".format(lockout_line))
+            print("It should have the same values as: '{}'".format(ACCOUNT_POLICY_LINE))
+        else:
+            print("Account policy line not found. Add '{}'".format(ACCOUNT_POLICY_LINE))
+
+        print()
+
+
+def log_password_policy():
+    path = Path("/etc/pam.d/common-password")
+    with path.open() as f:
+        basic_line = None
+        cracklib_line = None
+        for line in f.readlines():
+            if "pam_unix.so" in line:
+                basic_line = line
+            if "pam_cracklib.so" in line:
+                cracklib_line = line
+
+        print(path)
+        if basic_line is not None:
+            print("On line with pam_unix.so...")
+            if "remember" in basic_line:
+                print("\tYay! We're enforcing a password history!")
+            else:
+                print("\tWe need to enforce a password history using remember=5")
+            if "minlen" in basic_line:
+                print("\tYay! We're enforcing a min length!")
+            else:
+                print("\tYou need to enforce a min length with minlen=8")
+        else:
+            print("For what ever reason, the line with pam_unix.so isn't here!")
+
+        if cracklib_line is not None:
+            print("On line with pam_cracklib.so...")
+            if "ucredit" in cracklib_line:
+                print("\tYay! You're enforcing uppercase!")
+            else:
+                print("\tYou need to enforce uppercase with ucredit=")
+            if "lcredit" in cracklib_line:
+                print("\tYay! You're enforcing lowercase!")
+            else:
+                print("\tYou need to enforce lowercase with lcredit=")
+            if "dcredit" in cracklib_line:
+                print("\tYay! You're enforcing a number!")
+            else:
+                print("\tYou need to enforce a number with dcredit=")
+            if "ocredit" in cracklib_line:
+                print("\tYay! You're enforcing a symbol!")
+            else:
+                print("\tYou need to enforce a symbol with ocredit=")
+        else:
+            print("Line with pam_cracklib.so not found! "
+                  "Remember (sudo apt install libpam-cracklib)")
+
+        print()
+
+
+def log_home_directory_permissions():
+    correct = 0
+    incorrect = 0
+    for user in get_users():
+        home = Path(user.pw_dir)
+        permission = home.stat().st_mode
+        if permission & 0o750 != 0o750:
+            incorrect += 1
+            print("{}'s home directory has incorrect permission level.".format(user.pw_name))
+        else:
+            correct += 1
+
+    print("{} have the correct home directory permission and {} have an incorrect permission. "
+          "(Use chmod 0750 <HOME_DIRECTORY>)".format(correct, incorrect))
+    print()
 
 
 def main():
@@ -204,6 +288,12 @@ def main():
     log_ssh()
     log_firewall()
     log_password_history()
+    log_lockout_policy()
+    log_password_policy()
+    log_home_directory_permissions()
+    print("This program is not yet set up to check for auditing.")
+    print("This program is not yet set up to check for malicious programs or games.")
+    print()
     user_test()
 
 
