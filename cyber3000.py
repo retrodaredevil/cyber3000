@@ -1,10 +1,8 @@
-import getpass
 import os
 import platform
 import re
 import subprocess
 import sys
-import traceback
 from pathlib import Path
 
 try:
@@ -85,6 +83,9 @@ REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv
 def get_users_unix():
     """
     NOTE: This does not include the user "nobody"
+
+    Only works on *nix
+
     :return: All the users with UIDs in range [1000, 65534)
     """
     return set(entry for entry in pwd.getpwall()
@@ -93,6 +94,8 @@ def get_users_unix():
 
 def get_users_windows():
     """
+    Only works on windows
+
     :return: All the users. This includes Administrator, Guest and DefaultAccount
     """
     return win32net.NetUserEnum(platform.uname()[1], 1)[0]
@@ -101,7 +104,10 @@ def get_users_windows():
 def get_users_names():
     """
     NOTE: If on windows, This includes Administrator, Guest and DefaultAccount
-    :return: All the users on the system.
+
+    Works on Windows and *nix
+
+    :return: A collection of strings representing all the users on the system
     """
     if not pwd or not grp:
         if not win32net:
@@ -114,6 +120,9 @@ def get_users_names():
 def get_groups_unix(username):
     """
     Reference: https://stackoverflow.com/a/9324811/5434860
+
+    Only works on unix
+
     :param username: The name of the user
     :return: A collection of groups
     """
@@ -124,6 +133,11 @@ def get_groups_unix(username):
 
 
 def get_groups_names(username):
+    """
+    Works on windows and *nix
+    :param username: A string representing a username
+    :return: A set or list (collection) of group names that the user has
+    """
     if not pwd or not grp:
         return win32net.NetUserGetLocalGroups(platform.uname()[1], username)
     groups = set(g.gr_name for g in grp.getgrall() if username in g.gr_mem)
@@ -133,6 +147,11 @@ def get_groups_names(username):
 
 
 def is_admin(username):
+    """
+    Works on Windows and *nix
+    :param username: A string representing a username
+    :return: True or False depending on if the user is an admin
+    """
     if not pwd or not grp:
         return "Administrators" in get_groups_names(username)
     return "sudo" in get_groups_names(username)
@@ -153,6 +172,8 @@ def user_test():
         admins.append("Administrator")
         authorized_users.append("Guest")
         authorized_users.append("DefaultAccount")
+        print("Windows detected. Automatically accounting for "
+              "Administrator, Guest and DefaultAccount")
 
     expected_all_users = admins + authorized_users
 
@@ -424,11 +445,11 @@ def log_installed_packages():
     print()
 
 
-def log_media_files(directory, max_depth=None):
+def log_media_files(directory, max_depth=None, ignore_hidden=True):
     if isinstance(directory, str):
         directory = Path(directory)
-    directory = directory.resolve()
-    if directory.name.startswith("."):
+    directory = directory.resolve()  # get rid of any ".."s (simplify the path)
+    if not ignore_hidden and directory.name.startswith("."):
         return
     if max_depth is not None:
         if max_depth <= 0:
@@ -439,7 +460,7 @@ def log_media_files(directory, max_depth=None):
     try:
         for file in directory.iterdir():
             if file.is_dir():
-                log_media_files(file, max_depth=max_depth)
+                log_media_files(file, max_depth=max_depth, ignore_hidden=ignore_hidden)
             elif file.name.split(".")[-1].lower() in REPORT_FILE_EXTENSIONS:
                 number_found += 1
     except (PermissionError, FileNotFoundError, OSError):
@@ -450,7 +471,7 @@ def log_media_files(directory, max_depth=None):
 
 
 def main():
-    args = sys.argv
+    args = sys.argv  # NOTE the first argument is the name of the file
     if len(args) <= 1:
         log_guest_account()
         log_ssh()
