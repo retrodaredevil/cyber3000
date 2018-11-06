@@ -1,26 +1,77 @@
-import grp
-import pwd
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+try:
+    import pwd
+    import grp
+except ImportError:
+    pwd = None
+    grp = None
 
 try:
     import apt
 except ImportError:
     apt = None
 
-'''
-Possibly use this solution to make this work in windows:
-https://stackoverflow.com/a/16529231/5434860
-'''
 
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
 ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd"]
 """Packages that the user may want to install or uninstall"""
-REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"]
+HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users", "arachni",
+                    "android-sdk", "apktool", "arduino", "armitage", "asleap", "automater",
+                    "backdoor-factory", "bbqsql", "bed", "beef", "bing-ip2hosts", "binwalk",
+                    "blindelephant", "bluelog", "bluemaho", "bluepot", "blueranger", "bluesnarfer",
+                    "bulk-extractor", "bully", "burpsuite", "braa", "capstone", "casefile", "cdpsnarf",
+                    "cewl", "chntpw", "cisco-auditing-tool", "cisco-global-exploiter", "cisco-ocs",
+                    "cisco-torch", "cisco-router-config", "cmospwd", "cookie-cadger", "commix",
+                    "cowpatty", "crackle", "creddump", "crunch", "cryptcat", "cymothoa",
+                    "copy-router-config", "cuckoo", "cutycapt", "davtest", "dbd", "dbpwaudit",
+                    "dc3dd", "ddrescue", "deblaze", "dex2jar", "dff", "dhcpig", "dictstat", "dirb",
+                    "dirbuster", "distorm3", "dmitry", "dnmap", "dns2tcp", "dnschef", "dnsenum",
+                    "dnsmap", "dnsrecon", "dnstracer", "dnswalk", "doona", "dos2unix", "dotdotpwn",
+                    "dradis", "dumpzilla", "eapmd5pass", "edb-debugger", "enum4linux", "enumiax",
+                    "exploitdb", "extundelete", "fern-wifi-cracker", "fierce", "fiked", "fimap",
+                    "findmyhash", "firewalk", "fragroute", "foremost", "funkload", "galleta",
+                    "ghost-fisher", "giskismet", "grabber", "go-lismero", "goofile", "gpp-decrypt",
+                    "gsad", "gsd", "gqrx", "guymager", "gr-scan", "hamster-sidejack",
+                    "hash-identifier", "hexinject", "hexorbase", "http-tunnel", "httptunnel",
+                    "hping3", "hydra", "iaxflood", "inguma", "intrace", "inundator", "inviteflood",
+                    "ipv6-toolkit", "iphone-backup-analyzer", "intersect", "ismtp", "isr-evilgrade",
+                    "jad", "javasnoop", "jboss-autopwn", "jd-gui", "john", "johnny", "joomscan",
+                    "jsql", "kalibrate-rtl", "keepnote", "killerbee", "kismet", "keimpx",
+                    "linux-exploit-suggester", "ldb", "lynis", "maltego-teeth", "magictree",
+                    "masscan", "maskgen", "maskprocessor", "mdk3", "metagoofil", "metasploit",
+                    "mfcuk", "mfoc", "mfterm", "miranda", "mitmproxy", "multiforcer",
+                    "multimon-ng", "ncrack", "netcat", "nishang", "nipper-ng", "nmap", "ntop",
+                    "oclgausscrack", "ohwurm", "ollydpg", "openvas-administrator", "openvas-cli",
+                    "openvas-manager", "openvas-scanner", "oscanner", "p0f", "padbuster", "paros",
+                    "parsero", "patator", "pdf-parser", "pdfid", "pdgmail", "peepdf",
+                    "phrasendrescher", "pipal", "pixiewps", "plecost", "polenum", "policygen",
+                    "powerfuzzer", "powersploit", "protos-sip", "proxystrike", "pwnat", "rcrack",
+                    "rcrack-mt", "reaver", "rebind", "recon-ng", "redfang", "regripper",
+                    "responder", "ridenum", "rsmangler", "rtlsdr-scanner", "rtpbreak", "rtpflood",
+                    "rtpinsertsound", "rtpmixsound", "sakis3g", "sbd", "sctpscan", "setoolkit",
+                    "sfuzz", "shellnoob", "sidguesser", "siparmyknife", "sipp", "sipvicious",
+                    "skipfish", "slowhttptest", "smali", "smtp-user-enum", "sniffjoke", "snmpcheck",
+                    "spooftootph", "sslcaudit", "sslsplit", "sslstrip", "sslyze", "sqldict",
+                    "sqlmap", "sqlninja", "sqlsus", "statprocessor", "t50", "termineter",
+                    "thc-hydra", "thc-ipv6", "thc-pptp-bruter", "thc-ssl-dos", "tnscmd10g",
+                    "truecrack", "theharverster", "tlssled", "twofi", "u3-pwn", "uatester",
+                    "urlcrazy", "uniscan", "unix-privesc-check", "vega", "w3af", "webscarab",
+                    "webshag", "webshells", "webslayer", "websploit", "weevely", "wfuzz",
+                    "wifi-honey", "wifitap", "wifite", "wireshark", "winexe", "wpscan",
+                    "wordlists", "valgrind", "volatility", "voiphopper", "wol-e", "xspy", "xplico",
+                    "xsser", "yara", "yersinia", "zaproxy"]
+"""Many hacking tools. 
+Source: https://github.com/BaileyKasin/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
+REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"] + HACKING_PACKAGES
 """Packages that the user may want to uninstall"""
 REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
 """Names contained in packages that the user may want to uninstall"""
+REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv", "mpeg", "mpg",
+                          "gif", "png", "jpg", "jpeg"]
 
 
 def get_users():
@@ -45,6 +96,10 @@ def get_groups(username):
 
 def is_admin(username):
     return any(g.gr_name == "sudo" for g in get_groups(username))
+
+
+def print_path_expected(path):
+    print("{} does not exist! Maybe you're using windows?".format(path))
 
 
 def user_test():
@@ -87,7 +142,7 @@ def user_test():
             perfect = False
 
     if perfect:
-        print("Everything is perfect!")
+        print("Everything is perfect with the users' groups!")
 
 
 def log_guest_account():
@@ -122,7 +177,6 @@ def log_guest_account():
 
             if "autologin-user" in s:
                 print("Auto login explicitly stated! Probably bad.")
-
     print()
 
 
@@ -145,7 +199,6 @@ def log_ssh():
                 print("The PermitRootLogin configuration is allowed by logging in using keys.")
             else:
                 print("The PermitRootLogin configuration is nowhere to be found!")
-
     print()
 
 
@@ -166,116 +219,122 @@ def log_firewall():
 
 def log_password_history():
     path = Path("/etc/login.defs")
-    with path.open() as f:
-        lines = f.readlines()
-        max_days = None
-        min_days = None
-        warn_age = None
-        for line in lines:
-            line = line[:-1]
-            if line.startswith("PASS_"):
-                split = re.split("\W+", line)
-                if line.startswith("PASS_MAX_DAYS"):
-                    max_days = int(split[-1])
-                elif line.startswith("PASS_MIN_DAYS"):
-                    min_days = int(split[-1])
-                elif line.startswith("PASS_WARN_AGE"):
-                    warn_age = int(split[-1])
+    if not path.exists():
+        print_path_expected(path)
+    else:
+        with path.open() as f:
+            lines = f.readlines()
+            max_days = None
+            min_days = None
+            warn_age = None
+            for line in lines:
+                line = line[:-1]
+                if line.startswith("PASS_"):
+                    split = re.split("\W+", line)
+                    if line.startswith("PASS_MAX_DAYS"):
+                        max_days = int(split[-1])
+                    elif line.startswith("PASS_MIN_DAYS"):
+                        min_days = int(split[-1])
+                    elif line.startswith("PASS_WARN_AGE"):
+                        warn_age = int(split[-1])
 
-        print(path)
-        print("Password history settings: max days: {}\tmin days:{}\twarn age:{}"
-              .format(max_days, min_days, warn_age))
-        if max_days is None:
-            print("Password max days is not defined")
-        if min_days is None:
-            print("Password min days is not defined")
-        if warn_age is None:
-            print("Password warn age is not defined")
+            print(path)
+            print("Password history settings: max days: {}\tmin days:{}\twarn age:{}"
+                  .format(max_days, min_days, warn_age))
+            if max_days is None:
+                print("Password max days is not defined")
+            if min_days is None:
+                print("Password min days is not defined")
+            if warn_age is None:
+                print("Password warn age is not defined")
 
-        if max_days != 90:
-            print("Password max days should be 90. It's {}".format(max_days))
-        else:
-            print("Max days is correct.")
+            if max_days != 90:
+                print("Password max days should be 90. It's {}".format(max_days))
+            else:
+                print("Max days is correct.")
 
-        if min_days != 10:
-            print("Password min days should be 10. It's {}".format(min_days))
-        else:
-            print("Min days is correct.")
+            if min_days != 10:
+                print("Password min days should be 10. It's {}".format(min_days))
+            else:
+                print("Min days is correct.")
 
-        if warn_age != 7:
-            print("Password warn age should be 7. It's {}".format(warn_age))
-        else:
-            print("Password warn age is correct.")
-
-        print()
+            if warn_age != 7:
+                print("Password warn age should be 7. It's {}".format(warn_age))
+            else:
+                print("Password warn age is correct.")
+    print()
 
 
 def log_lockout_policy():
     path = Path("/etc/pam.d/common-auth")
-    with path.open() as f:
-        lockout_line = None
-        for line in f.readlines():
-            if line.startswith("auth required pam_tally2.so"):
-                lockout_line = line
-                break
-        print(path)
-        if lockout_line is not None:
-            print("Account policy line found: '{}'".format(lockout_line))
-            print("It should have the same values as: '{}'".format(ACCOUNT_POLICY_LINE))
-        else:
-            print("Account policy line not found. Add '{}'".format(ACCOUNT_POLICY_LINE))
-
-        print()
+    if not path.exists():
+        print_path_expected(path)
+    else:
+        with path.open() as f:
+            lockout_line = None
+            for line in f.readlines():
+                if line.startswith("auth required pam_tally2.so"):
+                    lockout_line = line
+                    break
+            print(path)
+            if lockout_line is not None:
+                print("Account policy line found: '{}'".format(lockout_line))
+                print("It should have the same values as: '{}'".format(ACCOUNT_POLICY_LINE))
+            else:
+                print("Account policy line not found. Add '{}'".format(ACCOUNT_POLICY_LINE))
+    print()
 
 
 def log_password_policy():
     path = Path("/etc/pam.d/common-password")
-    with path.open() as f:
-        basic_line = None
-        cracklib_line = None
-        for line in f.readlines():
-            if "pam_unix.so" in line:
-                basic_line = line
-            if "pam_cracklib.so" in line:
-                cracklib_line = line
+    if not path.exists():
+        print_path_expected(path)
+    else:
+        with path.open() as f:
+            basic_line = None
+            cracklib_line = None
+            for line in f.readlines():
+                if "pam_unix.so" in line:
+                    basic_line = line
+                if "pam_cracklib.so" in line:
+                    cracklib_line = line
 
-        print(path)
-        if basic_line is not None:
-            print("On line with pam_unix.so...")
-            if "remember" in basic_line:
-                print("\tYay! We're enforcing a password history!")
+            print(path)
+            if basic_line is not None:
+                print("On line with pam_unix.so...")
+                if "remember" in basic_line:
+                    print("\tYay! We're enforcing a password history!")
+                else:
+                    print("\tWe need to enforce a password history using remember=5")
+                if "minlen" in basic_line:
+                    print("\tYay! We're enforcing a min length!")
+                else:
+                    print("\tYou need to enforce a min length with minlen=8")
             else:
-                print("\tWe need to enforce a password history using remember=5")
-            if "minlen" in basic_line:
-                print("\tYay! We're enforcing a min length!")
-            else:
-                print("\tYou need to enforce a min length with minlen=8")
-        else:
-            print("For what ever reason, the line with pam_unix.so isn't here!")
+                print("For what ever reason, the line with pam_unix.so isn't here!")
 
-        if cracklib_line is not None:
-            print("On line with pam_cracklib.so...")
-            if "ucredit" in cracklib_line:
-                print("\tYay! You're enforcing uppercase!")
+            if cracklib_line is not None:
+                print("On line with pam_cracklib.so...")
+                if "ucredit" in cracklib_line:
+                    print("\tYay! You're enforcing uppercase!")
+                else:
+                    print("\tYou need to enforce uppercase with ucredit=")
+                if "lcredit" in cracklib_line:
+                    print("\tYay! You're enforcing lowercase!")
+                else:
+                    print("\tYou need to enforce lowercase with lcredit=")
+                if "dcredit" in cracklib_line:
+                    print("\tYay! You're enforcing a number!")
+                else:
+                    print("\tYou need to enforce a number with dcredit=")
+                if "ocredit" in cracklib_line:
+                    print("\tYay! You're enforcing a symbol!")
+                else:
+                    print("\tYou need to enforce a symbol with ocredit=")
             else:
-                print("\tYou need to enforce uppercase with ucredit=")
-            if "lcredit" in cracklib_line:
-                print("\tYay! You're enforcing lowercase!")
-            else:
-                print("\tYou need to enforce lowercase with lcredit=")
-            if "dcredit" in cracklib_line:
-                print("\tYay! You're enforcing a number!")
-            else:
-                print("\tYou need to enforce a number with dcredit=")
-            if "ocredit" in cracklib_line:
-                print("\tYay! You're enforcing a symbol!")
-            else:
-                print("\tYou need to enforce a symbol with ocredit=")
-        else:
-            print("Line with pam_cracklib.so not found! "
-                  "Remember (sudo apt install libpam-cracklib)")
-
-        print()
+                print("Line with pam_cracklib.so not found! "
+                      "Remember (sudo apt install libpam-cracklib)")
+    print()
 
 
 def log_home_directory_permissions():
@@ -290,8 +349,11 @@ def log_home_directory_permissions():
         else:
             correct += 1
 
-    print("{} have the correct home directory permission and {} have an incorrect permission. "
-          "(Use chmod 0750 <HOME_DIRECTORY>)".format(correct, incorrect))
+    if incorrect == 0 and correct > 0:
+        print("All users have the correct home directory permission. (from chmod 0750 <dir>)")
+    else:
+        print("{} have the correct home directory permission and {} have an incorrect permission. "
+              "(Use chmod 0750 <dir>)".format(correct, incorrect))
     print()
 
 
@@ -306,24 +368,74 @@ def log_installed_packages():
                     or (package.is_installed and (package_name in REPORT_INSTALLED_PACKAGES
                                                   or any(part in package_name for part in
                                                          REPORT_INSTALLED_PACKAGES_CONTAINS)))):
-                print("{} Package {} {}installed"
-                      .format("+ " if package.is_installed else "- ", package_name, "IS " if package.is_installed else "NOT "))
+                print("{}Package {} {}installed"
+                      .format("+  " if package.is_installed else " - ",
+                              package_name,
+                              "IS " if package.is_installed else "NOT "))
 
     print()
+
+
+def log_media_files(directory, max_depth=None):
+    if isinstance(directory, str):
+        directory = Path(directory)
+    directory = directory.resolve()
+    if directory.name.startswith("."):
+        return
+    if max_depth is not None:
+        if max_depth <= 0:
+            return
+        max_depth -= 1
+
+    number_found = 0
+    try:
+        for file in directory.iterdir():
+            if file.is_dir():
+                log_media_files(file, max_depth=max_depth)
+            elif file.name.split(".")[-1].lower() in REPORT_FILE_EXTENSIONS:
+                number_found += 1
+    except (PermissionError, FileNotFoundError):
+        pass
+    if number_found != 0:
+        print("Found {} file(s) in {}"
+              .format((" " * (4 - len(str(number_found)))) + str(number_found), directory))
 
 
 def main():
-    log_guest_account()
-    log_ssh()
-    log_firewall()
-    log_password_history()
-    log_lockout_policy()
-    log_password_policy()
-    log_home_directory_permissions()
-    log_installed_packages()
-    print()
-    user_test()
+    args = sys.argv
+    if len(args) <= 1:
+        log_guest_account()
+        log_ssh()
+        log_firewall()
+        log_password_history()
+        log_lockout_policy()
+        log_password_policy()
+        log_home_directory_permissions()
+        log_installed_packages()
+        print()
+        user_test()
+    else:
+        arg = args[1].lower()
+        if arg == "scan":
+            directory = "/home"
+            if len(args) > 2:
+                directory = args[2]
+            print("Starting scan for media files")
+            log_media_files(directory, max_depth=15)
+            print("Scan finished")
+        elif arg == "user":
+            user_test()
+        else:
+            print("Unknown argument: {}".format(arg))
+            sys.exit(1)
+
+
+def try_main():
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
 
 
 if __name__ == '__main__':
-    main()
+    try_main()
