@@ -91,6 +91,10 @@ def get_users():
 
 
 def get_users_names():
+    if not pwd or not grp:
+        if not win32net:
+            raise RuntimeError("Not pwd or grp module and also no win32net found")
+        return set(user["name"] for user in win32net.NetUserEnum(platform.uname()[1], 1)[0])
     return set(entry.pw_name for entry in pwd.getpwall()
                if entry.pw_uid in range(1000, 65534))
 
@@ -108,10 +112,6 @@ def get_groups(username):
 
 
 def get_groups_names(username):
-    if not pwd or not grp:
-        if not win32net:
-            raise RuntimeError("Not pwd or grp module and also no win32net found")
-        return [user["name"] for user in win32net.NetUserEnum(platform.uname()[1], 1)[0]]
     groups = set(g.gr_name for g in grp.getgrall() if username in g.gr_mem)
     gid = pwd.getpwnam(username).pw_gid
     groups.add(grp.getgrgid(gid).gr_name)
