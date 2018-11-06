@@ -1,6 +1,9 @@
+import getpass
+import platform
 import re
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 
 try:
@@ -9,6 +12,11 @@ try:
 except ImportError:
     pwd = None
     grp = None
+    try:
+        import win32net
+        import win32netcon
+    except ImportError:
+        pass
 
 try:
     import apt
@@ -82,6 +90,11 @@ def get_users():
                if entry.pw_uid in range(1000, 65534))
 
 
+def get_users_names():
+    return set(entry.pw_name for entry in pwd.getpwall()
+               if entry.pw_uid in range(1000, 65534))
+
+
 def get_groups(username):
     """
     Reference: https://stackoverflow.com/a/9324811/5434860
@@ -94,8 +107,22 @@ def get_groups(username):
     return groups
 
 
+def get_groups_names(username):
+    if not pwd or not grp:
+        if not win32net:
+            raise RuntimeError("Not pwd or grp module and also no win32net found")
+        return [user["name"] for user in win32net.NetUserEnum(platform.uname()[1], 1)[0]]
+    groups = set(g.gr_name for g in grp.getgrall() if username in g.gr_mem)
+    gid = pwd.getpwnam(username).pw_gid
+    groups.add(grp.getgrgid(gid).gr_name)
+    return groups
+
+
 def is_admin(username):
-    return any(g.gr_name == "sudo" for g in get_groups(username))
+    if not pwd or not grp:
+        return "Administrators" in win32net.NetUserGetLocalGroups(platform.uname()[1],
+                                                                  getpass.getuser())
+    return "sudo" in get_groups_names(username)
 
 
 def print_path_expected(path):
@@ -111,10 +138,9 @@ def user_test():
 
     expected_all_users = admins + authorized_users
 
-    all_users = [entry.pw_name for entry in get_users()]
+    all_users = get_users_names()
     print("inputted users: " + str(expected_all_users))
     print("system users: " + str(all_users))
-    print()
     perfect = True
     for username in all_users:
         should_be_admin = username in admins
@@ -338,22 +364,26 @@ def log_password_policy():
 
 
 def log_home_directory_permissions():
-    correct = 0
-    incorrect = 0
-    for user in get_users():
-        home = Path(user.pw_dir)
-        permission = home.stat().st_mode
-        if permission & 0o750 != 0o750:
-            incorrect += 1
-            print("{}'s home directory has incorrect permission level.".format(user.pw_name))
-        else:
-            correct += 1
-
-    if incorrect == 0 and correct > 0:
-        print("All users have the correct home directory permission. (from chmod 0750 <dir>)")
+    if not pwd or not grp:
+        print("pwd or grp modules not found. Cannot test home directory permissions")
     else:
-        print("{} have the correct home directory permission and {} have an incorrect permission. "
-              "(Use chmod 0750 <dir>)".format(correct, incorrect))
+        correct = 0
+        incorrect = 0
+        for user in get_users():
+            home = Path(user.pw_dir)
+            permission = home.stat().st_mode
+            if permission & 0o750 != 0o750:
+                incorrect += 1
+                print("{}'s home directory has incorrect permission level.".format(user.pw_name))
+            else:
+                correct += 1
+
+        if incorrect == 0 and correct > 0:
+            print("All users have the correct home directory permission. (from chmod 0750 <dir>)")
+        else:
+            print("{} have the correct home directory permission and "
+                  "{} have an incorrect permission. (Use chmod 0750 <dir>)"
+                  .format(correct, incorrect))
     print()
 
 
@@ -394,7 +424,7 @@ def log_media_files(directory, max_depth=None):
                 log_media_files(file, max_depth=max_depth)
             elif file.name.split(".")[-1].lower() in REPORT_FILE_EXTENSIONS:
                 number_found += 1
-    except (PermissionError, FileNotFoundError):
+    except (PermissionError, FileNotFoundError, OSError):
         pass
     if number_found != 0:
         print("Found {} file(s) in {}"
