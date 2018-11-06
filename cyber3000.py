@@ -1,4 +1,5 @@
 import getpass
+import os
 import platform
 import re
 import subprocess
@@ -14,9 +15,8 @@ except ImportError:
     grp = None
     try:
         import win32net
-        import win32netcon
     except ImportError:
-        pass
+        win32net = None
 
 try:
     import apt
@@ -82,15 +82,27 @@ REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv
                           "gif", "png", "jpg", "jpeg"]
 
 
-def get_users():
+def get_users_unix():
     """
+    NOTE: This does not include the user "nobody"
     :return: All the users with UIDs in range [1000, 65534)
     """
     return set(entry for entry in pwd.getpwall()
                if entry.pw_uid in range(1000, 65534))
 
 
+def get_users_windows():
+    """
+    :return: All the users. This includes Administrator, Guest and DefaultAccount
+    """
+    return win32net.NetUserEnum(platform.uname()[1], 1)[0]
+
+
 def get_users_names():
+    """
+    NOTE: If on windows, This includes Administrator, Guest and DefaultAccount
+    :return: All the users on the system.
+    """
     if not pwd or not grp:
         if not win32net:
             raise RuntimeError("Not pwd or grp module and also no win32net found")
@@ -99,7 +111,7 @@ def get_users_names():
                if entry.pw_uid in range(1000, 65534))
 
 
-def get_groups(username):
+def get_groups_unix(username):
     """
     Reference: https://stackoverflow.com/a/9324811/5434860
     :param username: The name of the user
@@ -112,6 +124,8 @@ def get_groups(username):
 
 
 def get_groups_names(username):
+    if not pwd or not grp:
+        return win32net.NetUserGetLocalGroups(platform.uname()[1], username)
     groups = set(g.gr_name for g in grp.getgrall() if username in g.gr_mem)
     gid = pwd.getpwnam(username).pw_gid
     groups.add(grp.getgrgid(gid).gr_name)
@@ -120,8 +134,7 @@ def get_groups_names(username):
 
 def is_admin(username):
     if not pwd or not grp:
-        return "Administrators" in win32net.NetUserGetLocalGroups(platform.uname()[1],
-                                                                  getpass.getuser())
+        return "Administrators" in get_groups_names(username)
     return "sudo" in get_groups_names(username)
 
 
@@ -135,6 +148,11 @@ def user_test():
 
     admins = [s for s in admins_string.split(" ") if s]
     authorized_users = [s for s in authorized_users_string.split(" ") if s]
+
+    if os.name == "nt":
+        admins.append("Administrator")
+        authorized_users.append("Guest")
+        authorized_users.append("DefaultAccount")
 
     expected_all_users = admins + authorized_users
 
@@ -369,7 +387,7 @@ def log_home_directory_permissions():
     else:
         correct = 0
         incorrect = 0
-        for user in get_users():
+        for user in get_users_unix():
             home = Path(user.pw_dir)
             permission = home.stat().st_mode
             if permission & 0o750 != 0o750:
