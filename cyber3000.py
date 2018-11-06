@@ -1,9 +1,13 @@
 import grp
-import os
 import pwd
 import re
 import subprocess
 from pathlib import Path
+
+try:
+    import apt
+except ImportError:
+    apt = None
 
 '''
 Possibly use this solution to make this work in windows:
@@ -11,6 +15,12 @@ https://stackoverflow.com/a/16529231/5434860
 '''
 
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
+ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd"]
+"""Packages that the user may want to install or uninstall"""
+REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"]
+"""Packages that the user may want to uninstall"""
+REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
+"""Names contained in packages that the user may want to uninstall"""
 
 
 def get_users():
@@ -89,27 +99,29 @@ def log_guest_account():
                 if p.name.endswith(".conf"):
                     path = p
                     break
-        if not path.exists():
-            print("{} doesn't exist so we are unable to read contents of lightdm.conf"
-                  .format(path.absolute()))
-            return
-    with path.open() as f:
-        s = f.read()
-        no_guest = "allow-guest=false" in s
-        yes_guest = "allow-guest=true" in s
-        maybe_guest = "allow-guest" in s
-        print(path)
-        if yes_guest:
-            print("Guest account is explicitly allowed! Why would you do that?")
-        elif no_guest:
-            print("Guest account is explicitly disabled! Yay!")
-        elif maybe_guest:
-            print("Guest account configuration is explicitly stated, but the formatting is off.")
-        else:
-            print("Guest account is enabled! Bad!")
 
-        if "autologin-user" in s:
-            print("Auto login explicitly stated! Probably bad.")
+    if not path.exists():
+        print("{} doesn't exist so we are unable to read contents of lightdm.conf"
+              .format(path.absolute()))
+    else:
+        with path.open() as f:
+            s = f.read()
+            no_guest = "allow-guest=false" in s
+            yes_guest = "allow-guest=true" in s
+            maybe_guest = "allow-guest" in s
+            print(path)
+            if yes_guest:
+                print("Guest account is explicitly allowed! Why would you do that?")
+            elif no_guest:
+                print("Guest account is explicitly disabled! Yay!")
+            elif maybe_guest:
+                print(
+                    "Guest account configuration is explicitly stated, but the formatting is off.")
+            else:
+                print("Guest account is enabled! Bad!")
+
+            if "autologin-user" in s:
+                print("Auto login explicitly stated! Probably bad.")
 
     print()
 
@@ -119,27 +131,27 @@ def log_ssh():
     if not path.exists():
         print("{} doesn't exist! ssh must not be installed! "
               "(sudo apt-get install openssh-server)".format(path))
-        return
-    with path.open() as f:
-        s = f.read()
-        print(path)
-        if "#PermitRootLogin" in s:
-            print("The PermitRootLogin configuration is commented out!")
-        elif "PermitRootLogin yes" in s:
-            print("The PermitRootLogin configuration is allowed! The is usually bad!")
-        elif "PermitRootLogin no" in s:
-            print("The PermitRootLogin configuration is now allowed! Hurray!")
-        elif "PermitRootLogin prohibit-password" in s or "PermitRootLogin without-password" in s:
-            print("The PermitRootLogin configuration is allowed by logging in using keys.")
-        else:
-            print("The PermitRootLogin configuration is nowhere to be found!")
+    else:
+        with path.open() as f:
+            s = f.read()
+            print(path)
+            if "#PermitRootLogin" in s:
+                print("The PermitRootLogin configuration is commented out!")
+            elif "PermitRootLogin yes" in s:
+                print("The PermitRootLogin configuration is allowed! The is usually bad!")
+            elif "PermitRootLogin no" in s:
+                print("The PermitRootLogin configuration is now allowed! Hurray!")
+            elif "PermitRootLogin prohibit-password" in s or "PermitRootLogin without-password" in s:
+                print("The PermitRootLogin configuration is allowed by logging in using keys.")
+            else:
+                print("The PermitRootLogin configuration is nowhere to be found!")
 
     print()
 
 
 def log_firewall():
-    process = subprocess.Popen("ufw status", shell=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+    process = subprocess.Popen("ufw status", shell=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     process.wait()
     if process.returncode == 0:  # success
         print("firewall status: " + str(process.stdout.read()))
@@ -283,6 +295,23 @@ def log_home_directory_permissions():
     print()
 
 
+def log_installed_packages():
+    if apt is None:
+        print("Unable to report package status (sudo apt install python-apt)")
+    else:
+        cache = apt.Cache()
+        for package in cache:
+            package_name = str(package)
+            if (package_name in ALWAYS_REPORT_PACKAGES
+                    or (package.is_installed and (package_name in REPORT_INSTALLED_PACKAGES
+                                                  or any(part in package_name for part in
+                                                         REPORT_INSTALLED_PACKAGES_CONTAINS)))):
+                print("{} Package {} {}installed"
+                      .format("+ " if package.is_installed else "- ", package_name, "IS " if package.is_installed else "NOT "))
+
+    print()
+
+
 def main():
     log_guest_account()
     log_ssh()
@@ -291,8 +320,7 @@ def main():
     log_lockout_policy()
     log_password_policy()
     log_home_directory_permissions()
-    print("This program is not yet set up to check for auditing.")
-    print("This program is not yet set up to check for malicious programs or games.")
+    log_installed_packages()
     print()
     user_test()
 
