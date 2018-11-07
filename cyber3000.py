@@ -240,7 +240,11 @@ def log_no_password_required():
     if is_windows():
         for user in get_users_windows(level=3):
             if user["flags"] & win32netcon.UF_PASSWD_NOTREQD != 0:
-                print("User: {} doesn't require a password to login!".format(user["name"]))
+                print("User: {} doesn't require a password to login! (May not be accurate)"
+                      .format(user["name"]))
+            if user["password_expired"] != 0:
+                print("User: {} has an expired password! (This should be accurate)"
+                      .format(user["name"]))
     else:
         try:
             for user in spwd.getspall():
