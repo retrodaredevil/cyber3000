@@ -397,7 +397,7 @@ def log_firewall(fix=False):
             profile = None  # 0:domain, 1:private, 2:public
             status = [None, None, None]
             for line in process.stdout.readlines():
-                line = line.lower()
+                line = line.decode("utf-8").lower()
                 if line.startswith("domain profile"):
                     profile = 0
                 elif line.startswith("private profile"):
