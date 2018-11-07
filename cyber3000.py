@@ -278,7 +278,7 @@ def log_admin_account_enabled(fix=False):
     else:
         try:
             password = spwd.getspnam("root").sp_pwd
-            if fix and (not password or not password.startswith("!")):
+            if fix and not password.startswith("!"):
                 print("Going to try to lock root account...")
                 process = subprocess.Popen("passwd -l root", shell=True,
                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -598,34 +598,38 @@ def main():
     parser.add_argument("--fix", action="store_true",
                         help="Try to fix as many things that are wrong with the system.")
 
-    parser.add_argument("--user", action="store_true", help="Check for correct system users")
-
-    parser.add_argument("--scan", action="store_true", help="Scan for media files")
-    parser.add_argument("--path", type=str, help="The path to scan media files.")
+    parser.add_argument("--only", type=str, help="Only do one thing")
+    parser.add_argument("--path", type=str,
+                        help="The path to scan media files. Use with --only scan")
 
     args = parser.parse_args()
     if args.fix and args.scan:
         print("Cannot fix media files.")
         sys.exit(1)
 
-    if args.scan:
-        directory = args.path or "/home"
-        print("Starting scan for media files")
-        log_media_files(directory, max_depth=15)
-        print("Scan finished")
-    elif args.user:
-        user_test()
+    if args.only:
+        if args.only == "scan":
+            directory = args.path or "/home"
+            print("Starting scan for media files")
+            log_media_files(directory, max_depth=15)
+            print("Scan finished")
+        elif args.only == "user":
+            user_test()
+        else:
+            print("Unknown --only option: {}".format(args.only))
+            sys.exit(1)
     else:
         log_guest_account()
         log_no_password_required()
         log_admin_account_enabled(fix=args.fix)
-        log_ssh()
-        log_firewall(fix=args.fix)
-        log_password_history()
-        log_lockout_policy()
-        log_password_policy()
-        log_home_directory_permissions(fix=args.fix)
-        log_installed_packages()
+        if not is_windows():  # for linux only
+            log_ssh()
+            log_firewall(fix=args.fix)
+            log_password_history()
+            log_lockout_policy()
+            log_password_policy()
+            log_home_directory_permissions(fix=args.fix)
+            log_installed_packages()
         print()
         user_test()
 
