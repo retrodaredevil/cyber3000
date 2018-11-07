@@ -239,6 +239,7 @@ def user_test():
 
 
 def log_no_password_required():
+    print("Checking for users that don't require passwords...")
     if is_windows():
         for user in get_users_windows(level=3):
             if user["flags"] & win32netcon.UF_PASSWD_NOTREQD != 0:
@@ -248,7 +249,6 @@ def log_no_password_required():
                 print("User: {} has an expired password! (This should be accurate)"
                       .format(user["name"]))
     else:
-        print("Checking for users that don't require passwords...")
         try:
             perfect = True
             for user in spwd.getspall():
@@ -262,7 +262,7 @@ def log_no_password_required():
             if perfect:
                 print("All users require passwords! Hurray!")
         except PermissionError:
-            print("Unable to view accounts with no passwords. Run this script as sudo")
+            print("Unable to view account passwords. Run this script as sudo")
 
     print()
 
@@ -303,13 +303,22 @@ def log_admin_account_enabled(fix=False):
     print()
 
 
-def log_guest_account():
+def log_guest_account(fix=False):
     """Logs if the guest account is disabled. Works on windows and *nix"""
     if is_windows():
         print("Windows detected. Checking if guest is disabled...")
         guest_disabled = get_user_info_windows("Guest")["flags"] & win32netcon.UF_ACCOUNTDISABLE != 0
         if not guest_disabled:
-            print("Guest is ENABLED!!! BAD!!")
+            if fix:
+                print("Guest is enabled. Disabling...")
+                process = subprocess.Popen("net user guest /active:no")
+                process.wait()
+                if process.returncode == 0:
+                    print("Disabled Guest account!")
+                else:
+                    print("Couldn't disable guest account! (Run as Administrator)")
+            else:
+                print("Guest is ENABLED!!! BAD!! (net user guest /active:no)")
         else:
             print("Guest is disabled! Yay!")
     else:
@@ -369,30 +378,86 @@ def log_ssh():
 
 
 def log_firewall(fix=False):
-    process = subprocess.Popen("ufw status", shell=True,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait()
-    if process.returncode == 0:  # success
-        output = str(process.stdout.read())
-        if "inactive" not in output:
-            print("Firewall is on! Yay!")
+    def turn_on_windows_firewall(shown_name, set_name):
+        print("Trying to turn on {} firewall...".format(shown_name))
+        firewall_process = subprocess.Popen("netsh advfirewall set {} state on".format(set_name),
+                                            shell=True, stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE)
+        firewall_process.wait()
+        if firewall_process.returncode == 0:
+            print("Success!")
         else:
-            print("Firewall is off!")
-            if fix:
-                print("Turning on firewall...")
-                process = subprocess.Popen("ufw enable", shell=True,
-                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                process.wait()
-                if process.returncode == 0:
-                    print("Turned on the firewall! Yay!")
-                else:
-                    print("Couldn't turn on the firewall!")
-    elif process.returncode == 1:
-        print("You must be root to read the ufw status")
-    elif process.returncode == 127:
-        print("ufw not installed!")
+            print("Fail!")
+
+    if is_windows():
+        process = subprocess.Popen("netsh advfirewall show allprofiles", shell=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process.wait()
+        if process.returncode == 0:
+            profile = None  # 0:domain, 1:private, 2:public
+            status = [None, None, None]
+            for line in process.stdout.readlines():
+                line = line.lower()
+                if line.startswith("domain profile"):
+                    profile = 0
+                elif line.startswith("private profile"):
+                    profile = 1
+                elif line.startswith("public profile"):
+                    profile = 2
+                elif line.startswith("state"):
+                    is_on = "off" not in line
+                    on_off_string = "on" if is_on else "off"
+                    if not profile:
+                        print("No profile. But the state of something is: {}".format(on_off_string))
+                    else:
+                        status[profile] = is_on
+            if status[0] is None:
+                print("Unable to tell if domain profile is on or off")
+            if status[1] is None:
+                print("Unable to tell if private profile is on or off")
+            if status[2] is None:
+                print("Unable to tell if public profile is on or off")
+
+            if all(status):
+                print("Each firewall profile is on! Yay!")
+            else:
+                print("Some profile(s) are off! Is on: domain:{}, private:{}, public:{}"
+                      .format(*status))
+                if fix:
+                    if not status[0]:
+                        turn_on_windows_firewall("domain", "domainprofile")
+                    if not status[1]:
+                        turn_on_windows_firewall("private", "privateprofile")
+                    if not status[2]:
+                        turn_on_windows_firewall("public", "publicprofile")
+
+        else:
+            print("Couldn't view windows firewall status.")
     else:
-        print("(from ufw) Unknown error code: {}".format(process.returncode))
+        process = subprocess.Popen("ufw status", shell=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process.wait()
+        if process.returncode == 0:  # success
+            output = str(process.stdout.read())
+            if "inactive" not in output:
+                print("Firewall is on! Yay!")
+            else:
+                print("Firewall is off!")
+                if fix:
+                    print("Turning on firewall...")
+                    process = subprocess.Popen("ufw enable", shell=True,
+                                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    process.wait()
+                    if process.returncode == 0:
+                        print("Turned on the firewall! Yay!")
+                    else:
+                        print("Couldn't turn on the firewall!")
+        elif process.returncode == 1:
+            print("You must be root to read the ufw status")
+        elif process.returncode == 127:
+            print("ufw not installed!")
+        else:
+            print("(from ufw) Unknown error code: {}".format(process.returncode))
     print()
 
 
@@ -619,12 +684,12 @@ def main():
             print("Unknown --only option: {}".format(args.only))
             sys.exit(1)
     else:
-        log_guest_account()
+        log_guest_account(fix=args.fix)
         log_no_password_required()
         log_admin_account_enabled(fix=args.fix)
+        log_firewall(fix=args.fix)
         if not is_windows():  # for linux only
             log_ssh()
-            log_firewall(fix=args.fix)
             log_password_history()
             log_lockout_policy()
             log_password_policy()
