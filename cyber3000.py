@@ -8,13 +8,17 @@ from pathlib import Path
 try:
     import pwd
     import grp
+    win32net = None
+    win32netcon = None
 except ImportError:
     pwd = None
     grp = None
     try:
         import win32net
+        import win32netcon
     except ImportError:
         win32net = None
+        win32netcon = None
 
 try:
     import apt
@@ -80,6 +84,14 @@ REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv
                           "gif", "png", "jpg", "jpeg"]
 
 
+def get_hostname():
+    return platform.uname()[1]
+
+
+def is_windows():
+    return os.name == "nt"
+
+
 def get_users_unix():
     """
     NOTE: This does not include the user "nobody"
@@ -92,13 +104,24 @@ def get_users_unix():
                if entry.pw_uid in range(1000, 65534))
 
 
-def get_users_windows():
+def get_users_windows(level=3):
     """
     Only works on windows
 
+    :param level: The information level of the data. (0, 1, 2, 3, 10, 11, 20, 23 or 24)
     :return: All the users. This includes Administrator, Guest and DefaultAccount
     """
-    return win32net.NetUserEnum(platform.uname()[1], 1)[0]
+    return win32net.NetUserEnum(platform.uname()[1], level)[0]
+
+
+def get_user_info_windows(username, level=3):
+    """
+
+    :param username: The username
+    :param level: The information level of the data. (0, 1, 2, 3, 10, 11, 20, 23 or 24)
+    :return: Info about the user
+    """
+    return win32net.NetUserGetInfo(get_hostname(), username, level)
 
 
 def get_users_names():
@@ -112,7 +135,7 @@ def get_users_names():
     if not pwd or not grp:
         if not win32net:
             raise RuntimeError("Not pwd or grp module and also no win32net found")
-        return set(user["name"] for user in win32net.NetUserEnum(platform.uname()[1], 1)[0])
+        return set(user["name"] for user in get_users_windows(level=0))
     return set(entry.pw_name for entry in pwd.getpwall()
                if entry.pw_uid in range(1000, 65534))
 
@@ -168,7 +191,7 @@ def user_test():
     admins = [s for s in admins_string.split(" ") if s]
     authorized_users = [s for s in authorized_users_string.split(" ") if s]
 
-    if os.name == "nt":
+    if is_windows():
         admins.append("Administrator")
         authorized_users.append("Guest")
         authorized_users.append("DefaultAccount")
@@ -211,37 +234,45 @@ def user_test():
 
 
 def log_guest_account():
-    path = Path("/etc/lightdm/lightdm.conf")
-    if not path.exists():
-        directory = Path("/etc/lightdm/lightdm.conf.d")
-        if directory.exists() and directory.is_dir():
-            for p in directory.iterdir():
-                if p.name.endswith(".conf"):
-                    path = p
-                    break
-
-    if not path.exists():
-        print("{} doesn't exist so we are unable to read contents of lightdm.conf"
-              .format(path.absolute()))
+    """Logs if the guest account is disabled. Works on windows and *nix"""
+    if is_windows():
+        print("Windows detected. Checking if guest is disabled...")
+        guest_disabled = get_user_info_windows("Guest")["flags"] & win32netcon.UF_ACCOUNTDISABLE != 0
+        if not guest_disabled:
+            print("Guest is not disabled!")
+        else:
+            print("Guest is disabled!")
     else:
-        with path.open() as f:
-            s = f.read()
-            no_guest = "allow-guest=false" in s
-            yes_guest = "allow-guest=true" in s
-            maybe_guest = "allow-guest" in s
-            print(path)
-            if yes_guest:
-                print("Guest account is explicitly allowed! Why would you do that?")
-            elif no_guest:
-                print("Guest account is explicitly disabled! Yay!")
-            elif maybe_guest:
-                print(
-                    "Guest account configuration is explicitly stated, but the formatting is off.")
-            else:
-                print("Guest account is enabled! Bad!")
+        path = Path("/etc/lightdm/lightdm.conf")
+        if not path.exists():
+            directory = Path("/etc/lightdm/lightdm.conf.d")
+            if directory.exists() and directory.is_dir():
+                for p in directory.iterdir():
+                    if p.name.endswith(".conf"):
+                        path = p
+                        break
 
-            if "autologin-user" in s:
-                print("Auto login explicitly stated! Probably bad.")
+        if not path.exists():
+            print("{} doesn't exist so we are unable to read contents of lightdm.conf"
+                  .format(path.absolute()))
+        else:
+            with path.open() as f:
+                s = f.read()
+                no_guest = "allow-guest=false" in s
+                yes_guest = "allow-guest=true" in s
+                maybe_guest = "allow-guest" in s
+                print(path)
+                if yes_guest:
+                    print("Guest account is explicitly allowed! Why would you do that?")
+                elif no_guest:
+                    print("Guest account is explicitly disabled! Yay!")
+                elif maybe_guest:
+                    print("Guest account configuration is explicitly stated, but formatted bad.")
+                else:
+                    print("Guest account is enabled! Bad!")
+
+                if "autologin-user" in s:
+                    print("Auto login explicitly stated! Probably bad.")
     print()
 
 
