@@ -7,11 +7,14 @@ from pathlib import Path
 
 try:
     import pwd
+    import spwd
     import grp
+
     win32net = None
     win32netcon = None
 except ImportError:
     pwd = None
+    spwd = None
     grp = None
     try:
         import win32net
@@ -25,7 +28,6 @@ try:
 except ImportError:
     apt = None
 
-
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
 ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd"]
 """Packages that the user may want to install or uninstall"""
@@ -33,7 +35,8 @@ HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users"
                     "android-sdk", "apktool", "arduino", "armitage", "asleap", "automater",
                     "backdoor-factory", "bbqsql", "bed", "beef", "bing-ip2hosts", "binwalk",
                     "blindelephant", "bluelog", "bluemaho", "bluepot", "blueranger", "bluesnarfer",
-                    "bulk-extractor", "bully", "burpsuite", "braa", "capstone", "casefile", "cdpsnarf",
+                    "bulk-extractor", "bully", "burpsuite", "braa", "capstone", "casefile",
+                    "cdpsnarf",
                     "cewl", "chntpw", "cisco-auditing-tool", "cisco-global-exploiter", "cisco-ocs",
                     "cisco-torch", "cisco-router-config", "cmospwd", "cookie-cadger", "commix",
                     "cowpatty", "crackle", "creddump", "crunch", "cryptcat", "cymothoa",
@@ -233,15 +236,59 @@ def user_test():
         print("Everything is perfect with the users' groups!")
 
 
+def log_no_password_required():
+    if is_windows():
+        for user in get_users_windows(level=3):
+            if user["flags"] & win32netcon.UF_PASSWD_NOTREQD != 0:
+                print("User: {} doesn't require a password to login!".format(user["name"]))
+    else:
+        try:
+            for user in spwd.getspall():
+                password = user.sp_pwd
+                while password.startswith("!"):
+                    password = password[1:]
+                if not password:
+                    print("User: {} does not require a password! Bad!".format(user.sp_nam))
+        except PermissionError:
+            print("Unable to view accounts with no passwords. Run this script as sudo")
+
+    print()
+
+
+def log_admin_account_enabled():
+    if is_windows():
+        admin_disabled = get_user_info_windows("Administrator", level=3)["flags"] \
+                         & win32netcon.UF_ACCOUNTDISABLE != 0
+        if admin_disabled:
+            print("Administrator account is disabled! Yay!")
+        else:
+            print("Administrator account is enabled! Bad!")
+    else:
+        try:
+            password = spwd.getspnam("root").sp_pwd
+            if not password:
+                print("No password for root set! Very bad!! "
+                      "(sudo passwd root) (sudo passwd -l root)")
+            elif password.startswith("!!"):
+                print("The password for the root account has been locked! Yay!")
+            elif password.startswith("!"):
+                print("The root account has been locked! Yay!")
+            else:
+                print("The root account is enabled! Bad! (sudo passwd -l root)")
+        except PermissionError:
+            print("Unable to view if root account is enabled. Run this script as sudo.")
+    print()
+
+
 def log_guest_account():
     """Logs if the guest account is disabled. Works on windows and *nix"""
     if is_windows():
         print("Windows detected. Checking if guest is disabled...")
         guest_disabled = get_user_info_windows("Guest")["flags"] & win32netcon.UF_ACCOUNTDISABLE != 0
         if not guest_disabled:
-            print("Guest is not disabled!")
+            print("Guest is ENABLED!!! BAD!!")
         else:
-            print("Guest is disabled!")
+            print("Guest is disabled! Yay!")
     else:
         path = Path("/etc/lightdm/lightdm.conf")
         if not path.exists():
@@ -505,6 +552,8 @@ def main():
     args = sys.argv  # NOTE the first argument is the name of the file
     if len(args) <= 1:
         log_guest_account()
+        log_no_password_required()
+        log_admin_account_enabled()
         log_ssh()
         log_firewall()
         log_password_history()

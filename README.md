@@ -15,3 +15,5 @@ https://cyber66th.wordpress.com/2016/11/19/ubuntu-checklist/
 
 ### Useful links for future functionality
 https://programtalk.com/python-examples/win32netcon.UF_DONT_EXPIRE_PASSWD/
+
+https://programtalk.com/vs2/python/13102/winsys/winsys/accounts.py/
