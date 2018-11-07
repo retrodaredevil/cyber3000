@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from argparse import ArgumentParser
 
 try:
     import pwd
@@ -198,8 +199,9 @@ def user_test():
         admins.append("Administrator")
         authorized_users.append("Guest")
         authorized_users.append("DefaultAccount")
+        authorized_users.append("WDAGUtilityAccount")
         print("Windows detected. Automatically accounting for "
-              "Administrator, Guest and DefaultAccount")
+              "Administrator, Guest, DefaultAccount and WDAGUtilityAccount")
 
     expected_all_users = admins + authorized_users
 
@@ -246,20 +248,26 @@ def log_no_password_required():
                 print("User: {} has an expired password! (This should be accurate)"
                       .format(user["name"]))
     else:
+        print("Checking for users that don't require passwords...")
         try:
+            perfect = True
             for user in spwd.getspall():
                 password = user.sp_pwd
                 while password.startswith("!"):
                     password = password[1:]
                 if not password:
                     print("User: {} does not require a password! Bad!".format(user.sp_nam))
+                    perfect = False
+
+            if perfect:
+                print("All users require passwords! Hurray!")
         except PermissionError:
             print("Unable to view accounts with no passwords. Run this script as sudo")
 
     print()
 
 
-def log_admin_account_enabled():
+def log_admin_account_enabled(fix=False):
     if is_windows():
         admin_disabled = get_user_info_windows("Administrator", level=3)["flags"] \
                          & win32netcon.UF_ACCOUNTDISABLE != 0
@@ -270,6 +278,17 @@ def log_admin_account_enabled():
     else:
         try:
             password = spwd.getspnam("root").sp_pwd
+            if fix and (not password or not password.startswith("!")):
+                print("Going to try to lock root account...")
+                process = subprocess.Popen("passwd -l root", shell=True,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process.wait()
+                if process.returncode == 0:
+                    print("Locked root account!")
+                else:
+                    print("Couldn't lock root account!")
+                print()
+                return
             if not password:
                 print("No password for root set! Very bad!! "
                       "(sudo passwd root) (sudo passwd -l root)")
@@ -343,24 +362,37 @@ def log_ssh():
             elif "PermitRootLogin no" in s:
                 print("The PermitRootLogin configuration is now allowed! Hurray!")
             elif "PermitRootLogin prohibit-password" in s or "PermitRootLogin without-password" in s:
-                print("The PermitRootLogin configuration is allowed by logging in using keys.")
+                print("The PermitRootLogin configuration is allowed by using keys to login.")
             else:
                 print("The PermitRootLogin configuration is nowhere to be found!")
     print()
 
 
-def log_firewall():
+def log_firewall(fix=False):
     process = subprocess.Popen("ufw status", shell=True,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     process.wait()
     if process.returncode == 0:  # success
-        print("firewall status: " + str(process.stdout.read()))
+        output = str(process.stdout.read())
+        if "inactive" not in output:
+            print("Firewall is on! Yay!")
+        else:
+            print("Firewall is off!")
+            if fix:
+                print("Turning on firewall...")
+                process = subprocess.Popen("ufw enable", shell=True,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process.wait()
+                if process.returncode == 0:
+                    print("Turned on the firewall! Yay!")
+                else:
+                    print("Couldn't turn on the firewall!")
     elif process.returncode == 1:
         print("You must be root to read the ufw status")
     elif process.returncode == 127:
         print("ufw not installed!")
     else:
-        print("Unknown error code: {}".format(process.returncode))
+        print("(from ufw) Unknown error code: {}".format(process.returncode))
     print()
 
 
@@ -484,7 +516,7 @@ def log_password_policy():
     print()
 
 
-def log_home_directory_permissions():
+def log_home_directory_permissions(fix=False):
     if not pwd or not grp:
         print("pwd or grp modules not found. Cannot test home directory permissions")
     else:
@@ -496,6 +528,14 @@ def log_home_directory_permissions():
             if permission & 0o750 != 0o750:
                 incorrect += 1
                 print("{}'s home directory has incorrect permission level.".format(user.pw_name))
+                if fix:
+                    print("Trying to fix...")
+                    new_permission = permission | 0o750
+                    try:
+                        home.chmod(new_permission)
+                        print("Fixed the permission level!")
+                    except PermissionError:
+                        print("Unable to fix. Run with sudo.")
             else:
                 correct += 1
 
@@ -531,7 +571,7 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True):
     if isinstance(directory, str):
         directory = Path(directory)
     directory = directory.resolve()  # get rid of any ".."s (simplify the path)
-    if not ignore_hidden and directory.name.startswith("."):
+    if ignore_hidden and directory.name.startswith("."):
         return
     if max_depth is not None:
         if max_depth <= 0:
@@ -553,34 +593,41 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True):
 
 
 def main():
-    args = sys.argv  # NOTE the first argument is the name of the file
-    if len(args) <= 1:
+    # args = sys.argv  # NOTE the first argument is the name of the file
+    parser = ArgumentParser(None)
+    parser.add_argument("--fix", action="store_true",
+                        help="Try to fix as many things that are wrong with the system.")
+
+    parser.add_argument("--user", action="store_true", help="Check for correct system users")
+
+    parser.add_argument("--scan", action="store_true", help="Scan for media files")
+    parser.add_argument("--path", type=str, help="The path to scan media files.")
+
+    args = parser.parse_args()
+    if args.fix and args.scan:
+        print("Cannot fix media files.")
+        sys.exit(1)
+
+    if args.scan:
+        directory = args.path or "/home"
+        print("Starting scan for media files")
+        log_media_files(directory, max_depth=15)
+        print("Scan finished")
+    elif args.user:
+        user_test()
+    else:
         log_guest_account()
         log_no_password_required()
-        log_admin_account_enabled()
+        log_admin_account_enabled(fix=args.fix)
         log_ssh()
-        log_firewall()
+        log_firewall(fix=args.fix)
         log_password_history()
         log_lockout_policy()
         log_password_policy()
-        log_home_directory_permissions()
+        log_home_directory_permissions(fix=args.fix)
         log_installed_packages()
         print()
         user_test()
-    else:
-        arg = args[1].lower()
-        if arg == "scan":
-            directory = "/home"
-            if len(args) > 2:
-                directory = args[2]
-            print("Starting scan for media files")
-            log_media_files(directory, max_depth=15)
-            print("Scan finished")
-        elif arg == "user":
-            user_test()
-        else:
-            print("Unknown argument: {}".format(arg))
-            sys.exit(1)
 
 
 def try_main():
