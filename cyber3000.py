@@ -279,7 +279,7 @@ def log_admin_account_enabled():
                 print("The root account has been locked! Yay!")
             else:
                 print("The root account is enabled! Bad! (sudo passwd -l root)")
-        except PermissionError:
+        except (PermissionError, KeyError):
             print("Unable to view if root account is enabled. Run this script as sudo.")
     print()
 
