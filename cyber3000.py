@@ -378,7 +378,11 @@ def log_ssh():
 
 
 def log_firewall(fix=False):
+    """Logs if the firewall is on or not and turns it on if off and if fix is True.
+
+    Works on windows and linux"""
     def turn_on_windows_firewall(shown_name, set_name):
+        """Reference: https://helpdeskgeek.com/networking/windows-firewall-command-prompt-netsh/"""
         print("Trying to turn on {} firewall...".format(shown_name))
         firewall_process = subprocess.Popen("netsh advfirewall set {} state on".format(set_name),
                                             shell=True, stdout=subprocess.PIPE,
@@ -421,7 +425,7 @@ def log_firewall(fix=False):
             if all(status):
                 print("Each firewall profile is on! Yay!")
             else:
-                print("Some profile(s) are off! Is on: domain:{}, private:{}, public:{}"
+                print("Some firewall profile(s) are off! Is on: domain:{}, private:{}, public:{}"
                       .format(*status))
                 if fix:
                     if not status[0]:
@@ -658,12 +662,12 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True):
 
 
 def main():
-    # args = sys.argv  # NOTE the first argument is the name of the file
     parser = ArgumentParser(None)
     parser.add_argument("--fix", action="store_true",
                         help="Try to fix as many things that are wrong with the system.")
 
-    parser.add_argument("--only", type=str, help="Only do one thing")
+    parser.add_argument("--only", type=str,
+                        help="Only do one thing [scan|user|firewall|home|ssh|pass]")
     parser.add_argument("--path", type=str,
                         help="The path to scan media files. Use with --only scan")
 
@@ -677,13 +681,24 @@ def main():
             print("Scan finished")
         elif args.only == "user":
             user_test()
+        elif args.only == "firewall":
+            log_firewall(fix=args.fix)
+        elif args.only == "home":
+            log_home_directory_permissions(fix=args.fix)
+        elif args.only == "ssh" and not is_windows():
+            log_ssh()
+        elif args.only == "pass":
+            log_no_password_required()
+            log_password_history()
+            log_lockout_policy()
+            log_password_policy()
         else:
             print("Unknown --only option: {}".format(args.only))
             sys.exit(1)
     else:
         log_guest_account(fix=args.fix)
-        log_no_password_required()
         log_admin_account_enabled(fix=args.fix)
+        log_no_password_required()
         log_firewall(fix=args.fix)
         if not is_windows():  # for linux only
             log_ssh()
