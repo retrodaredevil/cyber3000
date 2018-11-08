@@ -29,6 +29,7 @@ try:
 except ImportError:
     apt = None
 
+
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
 ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd"]
 """Packages that the user may want to install or uninstall"""
@@ -86,6 +87,19 @@ REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
 """Names contained in packages that the user may want to uninstall"""
 REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv", "mpeg", "mpg",
                           "gif", "png", "jpg", "jpeg"]
+PASSWORD_MAX_DAYS = 90
+PASSWORD_MIN_DAYS = 10
+PASSWORD_WARN_DAYS = 7
+
+
+def run_simple_command(command):
+    """
+    :param command: The command to run
+    :return: stdout if successful, otherwise will return None
+    """
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process.wait()
+    return process.stdout if process.returncode == 0 else None
 
 
 def get_hostname():
@@ -349,6 +363,15 @@ def log_guest_account(fix=False):
                     print("Guest account configuration is explicitly stated, but formatted bad.")
                 else:
                     print("Guest account is enabled! Bad!")
+                    if fix:
+                        print("Trying to disable guest account...")
+                        try:
+                            with path.open("a") as append:
+                                append.write("\n")
+                                append.write("allow-guest=false\n")
+                            print("Success!")
+                        except PermissionError:
+                            print("Fail!")
 
                 if "autologin-user" in s:
                     print("Auto login explicitly stated! Probably bad.")
@@ -465,7 +488,7 @@ def log_firewall(fix=False):
     print()
 
 
-def log_password_history():
+def log_password_history_config(fix=False):
     path = Path("/etc/login.defs")
     if not path.exists():
         print_path_expected(path)
@@ -487,8 +510,9 @@ def log_password_history():
                         warn_age = int(split[-1])
 
             print(path)
-            print("Password history settings: max days: {}\tmin days:{}\twarn age:{}"
-                  .format(max_days, min_days, warn_age))
+            print("NOTE: These PASS_MAX* settings only apply to new users")
+            # print("Password history settings: max days: {}\tmin days:{}\twarn age:{}"
+            #       .format(max_days, min_days, warn_age))
             if max_days is None:
                 print("Password max days is not defined")
             if min_days is None:
@@ -496,24 +520,79 @@ def log_password_history():
             if warn_age is None:
                 print("Password warn age is not defined")
 
-            if max_days != 90:
-                print("Password max days should be 90. It's {}".format(max_days))
+            if max_days != PASSWORD_MAX_DAYS:
+                print("Password max days should be {}. It's {}".format(PASSWORD_MAX_DAYS, max_days))
             else:
                 print("Max days is correct.")
 
             if min_days != 10:
-                print("Password min days should be 10. It's {}".format(min_days))
+                print("Password min days should be {}. It's {}".format(PASSWORD_MIN_DAYS, min_days))
             else:
                 print("Min days is correct.")
 
             if warn_age != 7:
-                print("Password warn age should be 7. It's {}".format(warn_age))
+                print("Password warn age should be {}. It's {}"
+                      .format(PASSWORD_WARN_DAYS, warn_age))
             else:
                 print("Password warn age is correct.")
     print()
 
 
-def log_lockout_policy():
+def log_password_history_users(fix=False):
+    if is_windows():
+        print("passwd command does't exist on windows: unable to check password history for users.")
+    else:
+        print("Checking for users with incorrect max/min/warn password ages")
+        fails = 0
+        for username in get_users_names():
+            status = run_simple_command("passwd --status {}".format(username))
+            if not status:
+                fails += 1
+            else:
+                split = status.read().decode("utf-8").split(" ")
+                if split[1] != "P":
+                    print("User: {} has a password status of '{}'. This should be 'P' but isn't."
+                          .format(username, split[1]))
+                min_days = int(split[3])
+                max_days = int(split[4])
+                warn_days = int(split[5])
+                if max_days != PASSWORD_MAX_DAYS:
+                    print("{} has maximum password age of {}. Should be {}."
+                          .format(username, max_days, PASSWORD_MAX_DAYS))
+                    if fix:
+                        print("\tTrying to fix...", end="")
+                        if run_simple_command("passwd --maxdays {} {}".format(PASSWORD_MAX_DAYS,
+                                                                              username)):
+                            print("\tSuccess!")
+                        else:
+                            print("\tFail!")
+                if min_days != PASSWORD_MIN_DAYS:
+                    print("{} has minimum password age of {}. Should be {}."
+                          .format(username, min_days, PASSWORD_MIN_DAYS))
+                    if fix:
+                        print("\tTrying to fix...", end="")
+                        if run_simple_command("passwd --mindays {} {}".format(PASSWORD_MIN_DAYS,
+                                                                              username)):
+                            print("\tSuccess!")
+                        else:
+                            print("\tFail!")
+                if warn_days != PASSWORD_WARN_DAYS:
+                    print("{} has warn age of {}. Should be {}."
+                          .format(username, warn_days, PASSWORD_WARN_DAYS))
+                    if fix:
+                        print("\tTrying to fix...", end="")
+                        if run_simple_command("passwd --warndays {} {}".format(PASSWORD_WARN_DAYS,
+                                                                               username)):
+                            print("\tSuccess!")
+                        else:
+                            print("\tFail!")
+        if fails != 0:
+            print("Failed to view status for {} user(s).".format(fails))
+
+    print()
+
+
+def log_lockout_policy(fix=False):
     path = Path("/etc/pam.d/common-auth")
     if not path.exists():
         print_path_expected(path)
@@ -530,6 +609,16 @@ def log_lockout_policy():
                 print("It should have the same values as: '{}'".format(ACCOUNT_POLICY_LINE))
             else:
                 print("Account policy line not found. Add '{}'".format(ACCOUNT_POLICY_LINE))
+                if fix:
+                    print("Trying to add line...")
+                    try:
+                        with path.open("a") as append:  # append
+                            append.write("\n")
+                            append.write(ACCOUNT_POLICY_LINE)
+                            append.write("\n")
+                            print("Success!")
+                    except PermissionError:
+                        print("Failed!")
     print()
 
 
@@ -662,7 +751,7 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True):
 
 
 def main():
-    parser = ArgumentParser(None)
+    parser = ArgumentParser()
     parser.add_argument("--fix", action="store_true",
                         help="Try to fix as many things that are wrong with the system.")
 
@@ -685,13 +774,18 @@ def main():
             log_firewall(fix=args.fix)
         elif args.only == "home":
             log_home_directory_permissions(fix=args.fix)
-        elif args.only == "ssh" and not is_windows():
+        elif args.only == "ssh":
+            if is_windows():
+                print("Cannot detect ssh on windows")
+                sys.exit(1)
             log_ssh()
         elif args.only == "pass":
             log_no_password_required()
-            log_password_history()
-            log_lockout_policy()
-            log_password_policy()
+            if not is_windows():
+                log_password_history_config(fix=args.fix)
+                log_password_history_users(fix=args.fix)
+                log_lockout_policy(fix=args.fix)
+                log_password_policy()
         else:
             print("Unknown --only option: {}".format(args.only))
             sys.exit(1)
@@ -702,8 +796,9 @@ def main():
         log_firewall(fix=args.fix)
         if not is_windows():  # for linux only
             log_ssh()
-            log_password_history()
-            log_lockout_policy()
+            log_password_history_config(fix=args.fix)
+            log_password_history_users(fix=args.fix)
+            log_lockout_policy(fix=args.fix)
             log_password_policy()
             log_home_directory_permissions(fix=args.fix)
             log_installed_packages()
