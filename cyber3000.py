@@ -407,7 +407,7 @@ def log_firewall(fix=False):
                 elif line.startswith("state"):
                     is_on = "off" not in line
                     on_off_string = "on" if is_on else "off"
-                    if not profile:
+                    if profile is None:
                         print("No profile. But the state of something is: {}".format(on_off_string))
                     else:
                         status[profile] = is_on
@@ -668,9 +668,6 @@ def main():
                         help="The path to scan media files. Use with --only scan")
 
     args = parser.parse_args()
-    if args.fix and args.scan:
-        print("Cannot fix media files.")
-        sys.exit(1)
 
     if args.only:
         if args.only == "scan":
