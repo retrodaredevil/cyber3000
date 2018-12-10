@@ -202,6 +202,10 @@ def print_path_expected(path):
     print("{} does not exist! Maybe you're using windows?".format(path))
 
 
+def print_run_with_fix():
+    print("Run with --fix to fix")
+
+
 def user_test():
     admins_string = input("Please input all admins separated by a space:")
     authorized_users_string = input("Please input all authorized users separated by a space:")
@@ -306,12 +310,14 @@ def log_admin_account_enabled(fix=False):
             if not password:
                 print("No password for root set! Very bad!! "
                       "(sudo passwd root) (sudo passwd -l root)")
+                print_run_with_fix()
             elif password.startswith("!!"):
                 print("The password for the root account has been locked! Yay!")
             elif password.startswith("!"):
                 print("The root account has been locked! Yay!")
             else:
                 print("The root account is enabled! Bad! (sudo passwd -l root)")
+                print_run_with_fix()
         except (PermissionError, KeyError):
             print("Unable to view if root account is enabled. Run this script as sudo.")
     print()
@@ -333,6 +339,7 @@ def log_guest_account(fix=False):
                     print("Couldn't disable guest account! (Run as Administrator)")
             else:
                 print("Guest is ENABLED!!! BAD!! (net user guest /active:no)")
+                print_run_with_fix()
         else:
             print("Guest is disabled! Yay!")
     else:
@@ -372,6 +379,8 @@ def log_guest_account(fix=False):
                             print("Success!")
                         except PermissionError:
                             print("Fail!")
+                    else:
+                        print_run_with_fix()
 
                 if "autologin-user" in s:
                     print("Auto login explicitly stated! Probably bad.")
@@ -379,24 +388,95 @@ def log_guest_account(fix=False):
 
 
 def log_ssh():
+    """
+    Logs ssh configurations
+
+    For reference:
+    http://tldp.org/LDP/solrhe/Securing-Optimizing-Linux-RH-Edition-v1.3/chap15sec122.html
+    """
     path = Path("/etc/ssh/sshd_config")
     if not path.exists():
         print("{} doesn't exist! ssh must not be installed! "
               "(sudo apt-get install openssh-server)".format(path))
     else:
         with path.open() as f:
-            s = f.read()
             print(path)
-            if "#PermitRootLogin" in s:
-                print("The PermitRootLogin configuration is commented out!")
-            elif "PermitRootLogin yes" in s:
-                print("The PermitRootLogin configuration is allowed! The is usually bad!")
-            elif "PermitRootLogin no" in s:
-                print("The PermitRootLogin configuration is now allowed! Hurray!")
-            elif "PermitRootLogin prohibit-password" in s or "PermitRootLogin without-password" in s:
-                print("The PermitRootLogin configuration is allowed by using keys to login.")
-            else:
-                print("The PermitRootLogin configuration is nowhere to be found!")
+            found_root_login_line = False
+            for line in f.readlines():
+                line = line[0:-1]
+                if "PermitRootLogin" in line:
+                    found_root_login_line = True
+                    if "#" in line:
+                        print("found comment referencing PermitRootLogin. line: '{}'".format(line))
+                    elif "yes" in line:
+                        print("found line permitting root login! Bad! line: '{}'".format(line))
+                    elif "no" in line:
+                        print("found line disallowing root login! Good! line: '{}'".format(line))
+                    elif "prohibit-password" in line or "without-password" in line:
+                        print("found line permitting root login via keys. Probably should be "
+                              "changed to 'no' instead of 'prohibit-password'. line: '{}'"
+                              .format(line))
+                    else:
+                        print("found a line with PermitRootLogin in it with unknown value? "
+                              "Possibly corrupt file? line: {}".format(line))
+                elif "IgnoreRhosts" in line:
+                    if "#" not in line:
+                        if "no" in line:
+                            print("Rhosts are not being ignored! Bad! Change to no!")
+                elif "StrictModes" in line:
+                    if "#" not in line:
+                        if "no" in line:
+                            print("StrictModes is disabled! Bad!")
+                elif "X11Forwarding" in line:
+                    if "#" not in line:
+                        if "yes" in line:
+                            print("X11Forwarding is enabled! This should probably be disabled!")
+                elif "RhostsAuthentication" in line:
+                    if "#" not in line:
+                        if "yes" in line:
+                            print("RhostsAuthentication is enabled! Bad!")
+                elif "RhostsRSAAuthenitcation" in line:
+                    if "#" not in line:
+                        if "yes" in line:
+                            print("RhostsRSAAuthentication is enabled! Bad!")
+                elif "RSAAuthentication" in line:
+                    if "#" not in line:
+                        if "no" in line:
+                            print("RSAAuthenitcation is disabled! Enable for better security!")
+                elif "PasswordAuthentication" in line:
+                    if "#" not in line:
+                        if "no" in line:
+                            print("PasswordAuthentication is disabled! VERY BAD!")
+                elif "PermitEmptyPasswords" in line:
+                    if "#" not in line:
+                        if "yes" in line:
+                            print("Empty passwords are permitted! This is insecure but is "
+                                  "necessary if backing up files using scp.")
+                elif "AllowUsers" in line:
+                    print("AllowUsers line: '{}'".format(line))
+
+            if not found_root_login_line:
+                print("There is no line with 'PermitRootLogin' in it!")
+
+    print()
+
+
+def log_ftp():
+    install_path = Path("/etc/pure-ftpd")
+    if not install_path.exists():
+        print("pure-ftpd must not be installed because '{}' doesn't exist"
+              .format(install_path))
+        print()
+        return
+    config_path = Path(install_path, "conf")
+    if not config_path.exists():
+        print("pure-ftpd is installed but has no conf folder. "
+              "(Using an older configuration style?) '{}' doesn't exist".format(config_path))
+        print()
+        return
+
+    print(config_path)
+    print("found ftp configuration folder but this code does nothing right now so that's cool")
     print()
 
 
@@ -457,6 +537,8 @@ def log_firewall(fix=False):
                         turn_on_windows_firewall("private", "privateprofile")
                     if not status[2]:
                         turn_on_windows_firewall("public", "publicprofile")
+                else:
+                    print_run_with_fix()
 
         else:
             print("Couldn't view windows firewall status.")
@@ -479,6 +561,8 @@ def log_firewall(fix=False):
                         print("Turned on the firewall! Yay!")
                     else:
                         print("Couldn't turn on the firewall!")
+                else:
+                    print_run_with_fix()
         elif process.returncode == 1:
             print("You must be root to read the ufw status")
         elif process.returncode == 127:
@@ -544,6 +628,7 @@ def log_password_history_users(fix=False):
     else:
         print("Checking for users with incorrect max/min/warn password ages")
         fails = 0
+        incorrect_count = 0
         for username in get_users_names():
             status = run_simple_command("passwd --status {}".format(username))
             if not status:
@@ -559,6 +644,7 @@ def log_password_history_users(fix=False):
                 if max_days != PASSWORD_MAX_DAYS:
                     print("{} has maximum password age of {}. Should be {}."
                           .format(username, max_days, PASSWORD_MAX_DAYS))
+                    incorrect_count += 1
                     if fix:
                         print("\tTrying to fix...", end="")
                         if run_simple_command("passwd --maxdays {} {}".format(PASSWORD_MAX_DAYS,
@@ -569,6 +655,7 @@ def log_password_history_users(fix=False):
                 if min_days != PASSWORD_MIN_DAYS:
                     print("{} has minimum password age of {}. Should be {}."
                           .format(username, min_days, PASSWORD_MIN_DAYS))
+                    incorrect_count += 1
                     if fix:
                         print("\tTrying to fix...", end="")
                         if run_simple_command("passwd --mindays {} {}".format(PASSWORD_MIN_DAYS,
@@ -579,6 +666,7 @@ def log_password_history_users(fix=False):
                 if warn_days != PASSWORD_WARN_DAYS:
                     print("{} has warn age of {}. Should be {}."
                           .format(username, warn_days, PASSWORD_WARN_DAYS))
+                    incorrect_count += 1
                     if fix:
                         print("\tTrying to fix...", end="")
                         if run_simple_command("passwd --warndays {} {}".format(PASSWORD_WARN_DAYS,
@@ -588,6 +676,8 @@ def log_password_history_users(fix=False):
                             print("\tFail!")
         if fails != 0:
             print("Failed to view status for {} user(s).".format(fails))
+        if not fix and incorrect_count > 0:
+            print_run_with_fix()
 
     print()
 
@@ -619,6 +709,8 @@ def log_lockout_policy(fix=False):
                             print("Success!")
                     except PermissionError:
                         print("Failed!")
+                else:
+                    print_run_with_fix()
     print()
 
 
@@ -655,19 +747,19 @@ def log_password_policy():
                 if "ucredit" in cracklib_line:
                     print("\tYay! You're enforcing uppercase!")
                 else:
-                    print("\tYou need to enforce uppercase with ucredit=")
+                    print("\tYou need to enforce uppercase with ucredit=-1")
                 if "lcredit" in cracklib_line:
                     print("\tYay! You're enforcing lowercase!")
                 else:
-                    print("\tYou need to enforce lowercase with lcredit=")
+                    print("\tYou need to enforce lowercase with lcredit=-1")
                 if "dcredit" in cracklib_line:
                     print("\tYay! You're enforcing a number!")
                 else:
-                    print("\tYou need to enforce a number with dcredit=")
+                    print("\tYou need to enforce a number with dcredit=-1")
                 if "ocredit" in cracklib_line:
                     print("\tYay! You're enforcing a symbol!")
                 else:
-                    print("\tYou need to enforce a symbol with ocredit=")
+                    print("\tYou need to enforce a symbol with ocredit=-1")
             else:
                 print("Line with pam_cracklib.so not found! "
                       "Remember (sudo apt install libpam-cracklib)")
@@ -694,6 +786,8 @@ def log_home_directory_permissions(fix=False):
                         print("Fixed the permission level!")
                     except PermissionError:
                         print("Unable to fix. Run with sudo.")
+                else:
+                    print_run_with_fix()
             else:
                 correct += 1
 
@@ -712,7 +806,7 @@ def log_installed_packages():
     else:
         cache = apt.Cache()
         for package in cache:
-            package_name = str(package)
+            package_name = package.name
             if (package_name in ALWAYS_REPORT_PACKAGES
                     or (package.is_installed and (package_name in REPORT_INSTALLED_PACKAGES
                                                   or any(part in package_name for part in
@@ -725,7 +819,7 @@ def log_installed_packages():
     print()
 
 
-def log_media_files(directory, max_depth=None, ignore_hidden=True):
+def log_media_files(directory, max_depth=None, ignore_hidden=True, find_pngs=False):
     if isinstance(directory, str):
         directory = Path(directory)
     directory = directory.resolve()  # get rid of any ".."s (simplify the path)
@@ -740,9 +834,11 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True):
     try:
         for file in directory.iterdir():
             if file.is_dir():
-                log_media_files(file, max_depth=max_depth, ignore_hidden=ignore_hidden)
-            elif file.name.split(".")[-1].lower() in REPORT_FILE_EXTENSIONS:
-                number_found += 1
+                log_media_files(file, max_depth=max_depth, ignore_hidden=ignore_hidden, find_pngs=find_pngs)
+            else:
+                extension = file.name.split(".")[-1].lower()
+                if extension in REPORT_FILE_EXTENSIONS and (extension != "png" or find_pngs):
+                    number_found += 1
     except (PermissionError, FileNotFoundError, OSError):
         pass
     if number_found != 0:
@@ -754,6 +850,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument("--fix", action="store_true",
                         help="Try to fix as many things that are wrong with the system.")
+    parser.add_argument("--pngs", action="store_true",
+                        help="Should we scan for pngs as well? Used with --only scan")
 
     parser.add_argument("--only", type=str,
                         help="Only do one thing [scan|user|firewall|home|ssh|pass]")
@@ -766,7 +864,7 @@ def main():
         if args.only == "scan":
             directory = args.path or "/home"
             print("Starting scan for media files")
-            log_media_files(directory, max_depth=15)
+            log_media_files(directory, max_depth=15, find_pngs=args.pngs)
             print("Scan finished")
         elif args.only == "user":
             user_test()
@@ -796,6 +894,7 @@ def main():
         log_firewall(fix=args.fix)
         if not is_windows():  # for linux only
             log_ssh()
+            log_ftp()
             log_password_history_config(fix=args.fix)
             log_password_history_users(fix=args.fix)
             log_lockout_policy(fix=args.fix)
