@@ -231,11 +231,11 @@ def user_test():
         should_be_admin = username in admins
         should_be_standard = username in authorized_users
         if not should_be_admin and not should_be_standard:
-            print("User: {} shouldn't exist but it does!".format(username))
+            print("{} shouldn't exist but they do!".format(username))
             perfect = False
             continue
         if should_be_admin and should_be_standard:
-            print("You entered {} twice!".format(username))
+            print("You entered {} twice! Make sure you separate admins and standard users when you input.".format(username))
             perfect = False
             continue
         if is_admin(username):
@@ -249,7 +249,7 @@ def user_test():
 
     for username in expected_all_users:
         if username not in all_users:
-            print("There's no user " + username)
+            print("{} does not exist!".format(username))
             perfect = False
 
     if perfect:
@@ -383,7 +383,7 @@ def log_guest_account(fix=False):
                         print_run_with_fix()
 
                 if "autologin-user" in s:
-                    print("Auto login explicitly stated! Probably bad.")
+                    print("Auto login explicitly stated! Probably okay.")
     print()
 
 
@@ -462,21 +462,55 @@ def log_ssh():
 
 
 def log_ftp():
+    def get_contents(path):
+        if not path.exists():
+            return None
+        with path.open() as f:
+            return f.read()
     install_path = Path("/etc/pure-ftpd")
     if not install_path.exists():
-        print("pure-ftpd must not be installed because '{}' doesn't exist"
-              .format(install_path))
+        print(f"pure-ftpd must not be installed because '{install_path}' doesn't exist")
         print()
         return
     config_path = Path(install_path, "conf")
     if not config_path.exists():
-        print("pure-ftpd is installed but has no conf folder. "
-              "(Using an older configuration style?) '{}' doesn't exist".format(config_path))
+        print(f"pure-ftpd is installed but has no conf folder. (Using an older configuration style?) '{config_path}' "
+              f"does not exist.")
         print()
         return
 
     print(config_path)
-    print("found ftp configuration folder but this code does nothing right now so that's cool")
+
+    tls_path = Path(config_path, "TLS")
+    print(f"\t{tls_path}")
+    tls_contents = get_contents(tls_path)
+    if not tls_contents:
+        print("\t\tCouldn't find file!")
+    elif "2" in tls_contents:
+        print("\t\tYay! Using TLS encryption only!")
+    else:
+        print(f"\t\tBad! Not using TLS encryption only! Needs to be set to '2'! Found '{tls_contents}' instead")
+
+    chroot_path = Path(config_path, "ChrootEveryone")
+    print(f"\t{chroot_path}")
+    chroot_contents = get_contents(chroot_path)
+    if not chroot_contents:
+        print("\t\tCouldn't find file! Needs to contain 'yes'")
+    elif "yes" in chroot_contents:
+        print("\t\tChrootEveryone is enabled! Yay!")
+    else:
+        print(f"\t\tChrootEveryone is disabled! Bad! Found '{chroot_contents}'")
+
+    no_anonymous_path = Path(config_path, "NoAnonymous")
+    print(f"\t{no_anonymous_path}")
+    no_anonymous_contents = get_contents(no_anonymous_path)
+    if not no_anonymous_contents:
+        print("\t\tCouldn't find file! Needs to contain 'yes'")
+    elif "yes" in no_anonymous_contents:
+        print("\t\tAnonymous logins are disabled! Yay!")
+    else:
+        print("\t\tAnonymous logins are allowed! Bad! NoAnonymous needs to be set to 'yes'")
+
     print()
 
 
