@@ -2,6 +2,10 @@
 This program is made by Joshua Shannon
 
 This is a simple program to detect vulnerabilities in Debian and Windows
+
+## Python Version
+The minimum version that this supports should be python 3.4. This means no f-string literals and no type checking.
+
 ## References
 https://s3.amazonaws.com/cpvii/Training+materials/Unit+Eight+-+Ubuntu+Security.pdf
 

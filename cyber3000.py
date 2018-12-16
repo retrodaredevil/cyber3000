@@ -31,62 +31,65 @@ except ImportError:
 
 
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
-ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd"]
+ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd", "pure-ftpd", "apache2"]
 """Packages that the user may want to install or uninstall"""
-HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users", "arachni",
-                    "android-sdk", "apktool", "arduino", "armitage", "asleap", "automater",
-                    "backdoor-factory", "bbqsql", "bed", "beef", "bing-ip2hosts", "binwalk",
-                    "blindelephant", "bluelog", "bluemaho", "bluepot", "blueranger", "bluesnarfer",
-                    "bulk-extractor", "bully", "burpsuite", "braa", "capstone", "casefile",
-                    "cdpsnarf",
-                    "cewl", "chntpw", "cisco-auditing-tool", "cisco-global-exploiter", "cisco-ocs",
-                    "cisco-torch", "cisco-router-config", "cmospwd", "cookie-cadger", "commix",
-                    "cowpatty", "crackle", "creddump", "crunch", "cryptcat", "cymothoa",
-                    "copy-router-config", "cuckoo", "cutycapt", "davtest", "dbd", "dbpwaudit",
-                    "dc3dd", "ddrescue", "deblaze", "dex2jar", "dff", "dhcpig", "dictstat", "dirb",
-                    "dirbuster", "distorm3", "dmitry", "dnmap", "dns2tcp", "dnschef", "dnsenum",
-                    "dnsmap", "dnsrecon", "dnstracer", "dnswalk", "doona", "dos2unix", "dotdotpwn",
-                    "dradis", "dumpzilla", "eapmd5pass", "edb-debugger", "enum4linux", "enumiax",
-                    "exploitdb", "extundelete", "fern-wifi-cracker", "fierce", "fiked", "fimap",
-                    "findmyhash", "firewalk", "fragroute", "foremost", "funkload", "galleta",
-                    "ghost-fisher", "giskismet", "grabber", "go-lismero", "goofile", "gpp-decrypt",
-                    "gsad", "gsd", "gqrx", "guymager", "gr-scan", "hamster-sidejack",
-                    "hash-identifier", "hexinject", "hexorbase", "http-tunnel", "httptunnel",
-                    "hping3", "hydra", "iaxflood", "inguma", "intrace", "inundator", "inviteflood",
-                    "ipv6-toolkit", "iphone-backup-analyzer", "intersect", "ismtp", "isr-evilgrade",
-                    "jad", "javasnoop", "jboss-autopwn", "jd-gui", "john", "johnny", "joomscan",
-                    "jsql", "kalibrate-rtl", "keepnote", "killerbee", "kismet", "keimpx",
-                    "linux-exploit-suggester", "ldb", "lynis", "maltego-teeth", "magictree",
-                    "masscan", "maskgen", "maskprocessor", "mdk3", "metagoofil", "metasploit",
-                    "mfcuk", "mfoc", "mfterm", "miranda", "mitmproxy", "multiforcer",
-                    "multimon-ng", "ncrack", "netcat", "nishang", "nipper-ng", "nmap", "ntop",
-                    "oclgausscrack", "ohwurm", "ollydpg", "openvas-administrator", "openvas-cli",
-                    "openvas-manager", "openvas-scanner", "oscanner", "p0f", "padbuster", "paros",
-                    "parsero", "patator", "pdf-parser", "pdfid", "pdgmail", "peepdf",
-                    "phrasendrescher", "pipal", "pixiewps", "plecost", "polenum", "policygen",
-                    "powerfuzzer", "powersploit", "protos-sip", "proxystrike", "pwnat", "rcrack",
-                    "rcrack-mt", "reaver", "rebind", "recon-ng", "redfang", "regripper",
-                    "responder", "ridenum", "rsmangler", "rtlsdr-scanner", "rtpbreak", "rtpflood",
-                    "rtpinsertsound", "rtpmixsound", "sakis3g", "sbd", "sctpscan", "setoolkit",
-                    "sfuzz", "shellnoob", "sidguesser", "siparmyknife", "sipp", "sipvicious",
-                    "skipfish", "slowhttptest", "smali", "smtp-user-enum", "sniffjoke", "snmpcheck",
-                    "spooftootph", "sslcaudit", "sslsplit", "sslstrip", "sslyze", "sqldict",
-                    "sqlmap", "sqlninja", "sqlsus", "statprocessor", "t50", "termineter",
-                    "thc-hydra", "thc-ipv6", "thc-pptp-bruter", "thc-ssl-dos", "tnscmd10g",
-                    "truecrack", "theharverster", "tlssled", "twofi", "u3-pwn", "uatester",
-                    "urlcrazy", "uniscan", "unix-privesc-check", "vega", "w3af", "webscarab",
-                    "webshag", "webshells", "webslayer", "websploit", "weevely", "wfuzz",
-                    "wifi-honey", "wifitap", "wifite", "wireshark", "winexe", "wpscan",
-                    "wordlists", "valgrind", "volatility", "voiphopper", "wol-e", "xspy", "xplico",
-                    "xsser", "yara", "yersinia", "zaproxy"]
+ALWAYS_REPORT_PACKAGES_SET = set(ALWAYS_REPORT_PACKAGES)
+_HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users", "arachni",
+                     "android-sdk", "apktool", "arduino", "armitage", "asleap", "automater",
+                     "backdoor-factory", "bbqsql", "bed", "beef", "bing-ip2hosts", "binwalk",
+                     "blindelephant", "bluelog", "bluemaho", "bluepot", "blueranger", "bluesnarfer",
+                     "bulk-extractor", "bully", "burpsuite", "braa", "capstone", "casefile",
+                     "cdpsnarf",
+                     "cewl", "chntpw", "cisco-auditing-tool", "cisco-global-exploiter", "cisco-ocs",
+                     "cisco-torch", "cisco-router-config", "cmospwd", "cookie-cadger", "commix",
+                     "cowpatty", "crackle", "creddump", "crunch", "cryptcat", "cymothoa",
+                     "copy-router-config", "cuckoo", "cutycapt", "davtest", "dbd", "dbpwaudit",
+                     "dc3dd", "ddrescue", "deblaze", "dex2jar", "dff", "dhcpig", "dictstat", "dirb",
+                     "dirbuster", "distorm3", "dmitry", "dnmap", "dns2tcp", "dnschef", "dnsenum",
+                     "dnsmap", "dnsrecon", "dnstracer", "dnswalk", "doona", "dos2unix", "dotdotpwn",
+                     "dradis", "dumpzilla", "eapmd5pass", "edb-debugger", "enum4linux", "enumiax",
+                     "exploitdb", "extundelete", "fern-wifi-cracker", "fierce", "fiked", "fimap",
+                     "findmyhash", "firewalk", "fragroute", "foremost", "funkload", "galleta",
+                     "ghost-fisher", "giskismet", "grabber", "go-lismero", "goofile", "gpp-decrypt",
+                     "gsad", "gsd", "gqrx", "guymager", "gr-scan", "hamster-sidejack",
+                     "hash-identifier", "hexinject", "hexorbase", "http-tunnel", "httptunnel",
+                     "hping3", "hydra", "iaxflood", "inguma", "intrace", "inundator", "inviteflood",
+                     "ipv6-toolkit", "iphone-backup-analyzer", "intersect", "ismtp", "isr-evilgrade",
+                     "jad", "javasnoop", "jboss-autopwn", "jd-gui", "john", "johnny", "joomscan",
+                     "jsql", "kalibrate-rtl", "keepnote", "killerbee", "kismet", "keimpx",
+                     "linux-exploit-suggester", "ldb", "lynis", "maltego-teeth", "magictree",
+                     "masscan", "maskgen", "maskprocessor", "mdk3", "metagoofil", "metasploit",
+                     "mfcuk", "mfoc", "mfterm", "miranda", "mitmproxy", "multiforcer",
+                     "multimon-ng", "ncrack", "netcat", "nishang", "nipper-ng", "nmap", "ntop",
+                     "oclgausscrack", "ohwurm", "ollydpg", "openvas-administrator", "openvas-cli",
+                     "openvas-manager", "openvas-scanner", "oscanner", "p0f", "padbuster", "paros",
+                     "parsero", "patator", "pdf-parser", "pdfid", "pdgmail", "peepdf",
+                     "phrasendrescher", "pipal", "pixiewps", "plecost", "polenum", "policygen",
+                     "powerfuzzer", "powersploit", "protos-sip", "proxystrike", "pwnat", "rcrack",
+                     "rcrack-mt", "reaver", "rebind", "recon-ng", "redfang", "regripper",
+                     "responder", "ridenum", "rsmangler", "rtlsdr-scanner", "rtpbreak", "rtpflood",
+                     "rtpinsertsound", "rtpmixsound", "sakis3g", "sbd", "sctpscan", "setoolkit",
+                     "sfuzz", "shellnoob", "sidguesser", "siparmyknife", "sipp", "sipvicious",
+                     "skipfish", "slowhttptest", "smali", "smtp-user-enum", "sniffjoke", "snmpcheck",
+                     "spooftootph", "sslcaudit", "sslsplit", "sslstrip", "sslyze", "sqldict",
+                     "sqlmap", "sqlninja", "sqlsus", "statprocessor", "t50", "termineter",
+                     "thc-hydra", "thc-ipv6", "thc-pptp-bruter", "thc-ssl-dos", "tnscmd10g",
+                     "truecrack", "theharverster", "tlssled", "twofi", "u3-pwn", "uatester",
+                     "urlcrazy", "uniscan", "unix-privesc-check", "vega", "w3af", "webscarab",
+                     "webshag", "webshells", "webslayer", "websploit", "weevely", "wfuzz",
+                     "wifi-honey", "wifitap", "wifite", "wireshark", "winexe", "wpscan",
+                     "wordlists", "valgrind", "volatility", "voiphopper", "wol-e", "xspy", "xplico",
+                     "xsser", "yara", "yersinia", "zaproxy"]
 """Many hacking tools. 
 Source: https://github.com/BaileyKasin/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
-REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"] + HACKING_PACKAGES
+REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"] + _HACKING_PACKAGES
 """Packages that the user may want to uninstall"""
+REPORT_INSTALLED_PACKAGES_SET = set(REPORT_INSTALLED_PACKAGES)
 REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
 """Names contained in packages that the user may want to uninstall"""
 REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv", "mpeg", "mpg",
                           "gif", "png", "jpg", "jpeg"]
+REPORT_FILE_EXTENSIONS_SET = set(REPORT_FILE_EXTENSIONS)
 PASSWORD_MAX_DAYS = 90
 PASSWORD_MIN_DAYS = 10
 PASSWORD_WARN_DAYS = 7
@@ -387,6 +390,84 @@ def log_guest_account(fix=False):
     print()
 
 
+def log_ubuntu_repos():
+    updates_path = Path("/etc/apt/sources.list")
+    print("Don't edit these files directly. Go to Software and Updates.")
+    print(updates_path)
+    if updates_path.exists():
+        security = False
+        recommended = False
+        unsupported = False
+        with updates_path.open() as f:
+            for line in f.readlines():
+                if line.startswith("#"):
+                    continue
+
+                if "-security" in line:
+                    security = True
+                elif "-updates" in line:
+                    recommended = True
+                elif "-backports" in line:
+                    unsupported = True
+
+        if security:
+            print("\tSecurity updates are enabled! Yay!")
+        else:
+            print("\tSecurity updates are disabled! Bad!")
+
+        if recommended:
+            print("\tRecommended updates are enabled! Yay!")
+        else:
+            print("\tRecommended updates are disabled! Bad!")
+
+        if unsupported:
+            print("\tUnsupported updates are enabled! Bad!")
+        else:
+            print("\tUnsupported updates are disabled! Yay!")
+    else:
+        print("\tCouldn't find file! Is this ubuntu?")
+
+    check_path = Path("/etc/apt/apt.conf.d/10periodic")
+    print(check_path)
+    if check_path.exists():
+        with check_path.open() as f:
+            for line in f.read().split(";"):
+                # credit to https://askubuntu.com/a/1060281
+                # for future reference: https://askubuntu.com/a/868729
+                if "Update-Package-Lists" in line:
+                    if "0" in line:
+                        print("\tAutomatically checking for updates is disabled! Bad!")
+                    elif "1" in line:
+                        print("\tAutomatically checking for updates is enabled daily! Yay!")
+                    elif "2" in line:
+                        print("\tAutomatically checking for updates is enabled every 2 days! Change to daily!")
+                    elif "7" in line:
+                        print("\tAutomatically checking for updates is enabled every week! Change to daily!")
+                    elif "14" in line:
+                        print("\tAutomatically checking for updates is enabled every 2 weeks! Change to daily!")
+                    else:
+                        print("\tAutomatically checking for updates is using a custom interval. Parsing...")
+                        split = line.split("\"")
+                        if len(split) < 2:
+                            print("\tUnable to parse")
+                        else:
+                            number_string = split[1]
+                            try:
+                                number = int(number_string)
+                            except ValueError:
+                                number = None
+                            if number is None:
+                                print("\tUnable to parse")
+                            else:
+                                print("\tAutomatically checking for updates every {} days. Change it to daily!"
+                                      .format(number))
+
+    else:
+        print("\tCouldn't find file! Is this ubuntu?")
+
+    print()
+
+
 def log_ssh():
     """
     Logs ssh configurations
@@ -469,40 +550,40 @@ def log_ftp():
             return f.read()
     install_path = Path("/etc/pure-ftpd")
     if not install_path.exists():
-        print(f"pure-ftpd must not be installed because '{install_path}' doesn't exist")
+        print("pure-ftpd must not be installed because '{}' doesn't exist".format(install_path))
         print()
         return
     config_path = Path(install_path, "conf")
     if not config_path.exists():
-        print(f"pure-ftpd is installed but has no conf folder. (Using an older configuration style?) '{config_path}' "
-              f"does not exist.")
+        print("pure-ftpd is installed but has no conf folder. (Using an older configuration style?) '{}' "
+              "does not exist.".format(config_path))
         print()
         return
 
     print(config_path)
 
     tls_path = Path(config_path, "TLS")
-    print(f"\t{tls_path}")
+    print("\t{}".format(tls_path))
     tls_contents = get_contents(tls_path)
     if not tls_contents:
         print("\t\tCouldn't find file!")
     elif "2" in tls_contents:
         print("\t\tYay! Using TLS encryption only!")
     else:
-        print(f"\t\tBad! Not using TLS encryption only! Needs to be set to '2'! Found '{tls_contents}' instead")
+        print("\t\tBad! Not using TLS encryption only! Needs to be set to '2'! Found '{}' instead".format(tls_contents))
 
     chroot_path = Path(config_path, "ChrootEveryone")
-    print(f"\t{chroot_path}")
+    print("\t{}".format(chroot_path))
     chroot_contents = get_contents(chroot_path)
     if not chroot_contents:
         print("\t\tCouldn't find file! Needs to contain 'yes'")
     elif "yes" in chroot_contents:
         print("\t\tChrootEveryone is enabled! Yay!")
     else:
-        print(f"\t\tChrootEveryone is disabled! Bad! Found '{chroot_contents}'")
+        print("\t\tChrootEveryone is disabled! Bad! Found '{}'".format(chroot_contents))
 
     no_anonymous_path = Path(config_path, "NoAnonymous")
-    print(f"\t{no_anonymous_path}")
+    print("\t{}".format(no_anonymous_path))
     no_anonymous_contents = get_contents(no_anonymous_path)
     if not no_anonymous_contents:
         print("\t\tCouldn't find file! Needs to contain 'yes'")
@@ -660,7 +741,7 @@ def log_password_history_users(fix=False):
     if is_windows():
         print("passwd command does't exist on windows: unable to check password history for users.")
     else:
-        print("Checking for users with incorrect max/min/warn password ages")
+        print("Checking users incorrect max/min/warn password ages (Not usually scored) (Not important)")
         fails = 0
         incorrect_count = 0
         for username in get_users_names():
@@ -703,8 +784,7 @@ def log_password_history_users(fix=False):
                     incorrect_count += 1
                     if fix:
                         print("\tTrying to fix...", end="")
-                        if run_simple_command("passwd --warndays {} {}".format(PASSWORD_WARN_DAYS,
-                                                                               username)):
+                        if run_simple_command("passwd --warndays {} {}".format(PASSWORD_WARN_DAYS, username)):
                             print("\tSuccess!")
                         else:
                             print("\tFail!")
@@ -841,8 +921,8 @@ def log_installed_packages():
         cache = apt.Cache()
         for package in cache:
             package_name = package.name
-            if (package_name in ALWAYS_REPORT_PACKAGES
-                    or (package.is_installed and (package_name in REPORT_INSTALLED_PACKAGES
+            if (package_name in ALWAYS_REPORT_PACKAGES_SET
+                    or (package.is_installed and (package_name in REPORT_INSTALLED_PACKAGES_SET
                                                   or any(part in package_name for part in
                                                          REPORT_INSTALLED_PACKAGES_CONTAINS)))):
                 print("{}Package {} {}installed"
@@ -871,7 +951,7 @@ def log_media_files(directory, max_depth=None, ignore_hidden=True, find_pngs=Fal
                 log_media_files(file, max_depth=max_depth, ignore_hidden=ignore_hidden, find_pngs=find_pngs)
             else:
                 extension = file.name.split(".")[-1].lower()
-                if extension in REPORT_FILE_EXTENSIONS and (extension != "png" or find_pngs):
+                if extension in REPORT_FILE_EXTENSIONS_SET and (extension != "png" or find_pngs):
                     number_found += 1
     except (PermissionError, FileNotFoundError, OSError):
         pass
@@ -934,6 +1014,7 @@ def main():
             log_lockout_policy(fix=args.fix)
             log_password_policy()
             log_home_directory_permissions(fix=args.fix)
+            log_ubuntu_repos()
             log_installed_packages()
         print()
         user_test()
