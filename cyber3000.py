@@ -29,9 +29,8 @@ try:
 except ImportError:
     apt = None
 
-
 ACCOUNT_POLICY_LINE = "auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800"
-ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd", "pure-ftpd", "apache2"]
+ALWAYS_REPORT_PACKAGES = ["openssh-server", "clamav", "auditd", "pure-ftpd", "apache2", "vsftpd", "unattended-upgrades"]
 """Packages that the user may want to install or uninstall"""
 ALWAYS_REPORT_PACKAGES_SET = set(ALWAYS_REPORT_PACKAGES)
 _HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users", "arachni",
@@ -81,7 +80,7 @@ _HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users
                      "wordlists", "valgrind", "volatility", "voiphopper", "wol-e", "xspy", "xplico",
                      "xsser", "yara", "yersinia", "zaproxy"]
 """Many hacking tools. 
-Source: https://github.com/BaileyKasin/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
+Source: https://github.com/moomanst/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
 REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"] + _HACKING_PACKAGES
 """Packages that the user may want to uninstall"""
 REPORT_INSTALLED_PACKAGES_SET = set(REPORT_INSTALLED_PACKAGES)
@@ -238,7 +237,8 @@ def user_test():
             perfect = False
             continue
         if should_be_admin and should_be_standard:
-            print("You entered {} twice! Make sure you separate admins and standard users when you input.".format(username))
+            print("You entered {} twice! Make sure you separate admins and standard users when you input."
+                  .format(username))
             perfect = False
             continue
         if is_admin(username):
@@ -421,7 +421,7 @@ def log_ubuntu_repos():
             print("\tRecommended updates are disabled! Bad!")
 
         if unsupported:
-            print("\tUnsupported updates are enabled! Bad!")
+            print("\tUnsupported updates are enabled! Usually bad!")
         else:
             print("\tUnsupported updates are disabled! Yay!")
     else:
@@ -430,37 +430,53 @@ def log_ubuntu_repos():
     check_path = Path("/etc/apt/apt.conf.d/10periodic")
     print(check_path)
     if check_path.exists():
+        settings_dict = {
+            "Update-Package-Lists": None,
+            "Download-Upgradeable-Packages": None,
+            "AutocleanInterval": None,
+            "Unattended-Upgrade": None
+        }
         with check_path.open() as f:
             for line in f.read().split(";"):
                 # credit to https://askubuntu.com/a/1060281
                 # for future reference: https://askubuntu.com/a/868729
-                if "Update-Package-Lists" in line:
-                    if "0" in line:
-                        print("\tAutomatically checking for updates is disabled! Bad!")
-                    elif "1" in line:
-                        print("\tAutomatically checking for updates is enabled daily! Yay!")
-                    elif "2" in line:
-                        print("\tAutomatically checking for updates is enabled every 2 days! Change to daily!")
-                    elif "7" in line:
-                        print("\tAutomatically checking for updates is enabled every week! Change to daily!")
-                    elif "14" in line:
-                        print("\tAutomatically checking for updates is enabled every 2 weeks! Change to daily!")
-                    else:
-                        print("\tAutomatically checking for updates is using a custom interval. Parsing...")
+                # documentation: https://help.ubuntu.com/lts/serverguide/automatic-updates.html
+                for key in settings_dict.keys():
+                    if key in line:
                         split = line.split("\"")
-                        if len(split) < 2:
-                            print("\tUnable to parse")
-                        else:
+                        if len(split) >= 2:
                             number_string = split[1]
                             try:
                                 number = int(number_string)
                             except ValueError:
                                 number = None
-                            if number is None:
-                                print("\tUnable to parse")
-                            else:
-                                print("\tAutomatically checking for updates every {} days. Change it to daily!"
-                                      .format(number))
+                            settings_dict[key] = number
+
+        update_check_period = settings_dict["Update-Package-Lists"]
+        if not update_check_period:
+            print("\tAutomatic checking for updates is disabled! Bad!")
+        elif update_check_period == 1:
+            print("\tAutomatically checking for updates daily! Yay!")
+        else:
+            print("\tAutomatically checking for updates every {} days! Change to daily!".format(update_check_period))
+
+        upgradeable_download_period = settings_dict["Download-Upgradeable-Packages"]
+        if not upgradeable_download_period:
+            print("\tNot set to automatically download upgradeable packages")
+        else:
+            print("\tSet to download upgradeable packages every {} day(s)".format(upgradeable_download_period))
+
+        install_period = settings_dict["Unattended-Upgrade"]
+        if not install_period:
+            print("\tNot set to automatically install packages. (May need unattended-upgrades)")
+        else:
+            print("\tSet to install packages every {} day(s) (May need unattended-upgrades)".format(install_period))
+
+        autoclean_period = settings_dict["AutocleanInterval"]
+        if not autoclean_period:
+            print("\tNot set to autoclean")
+        else:
+            print("\tSet to autoclean every {} day(s)".format(autoclean_period))
 
     else:
         print("\tCouldn't find file! Is this ubuntu?")
@@ -482,6 +498,7 @@ def log_ssh():
     else:
         with path.open() as f:
             print(path)
+            print("Also remember to set firewall rules!")
             found_root_login_line = False
             for line in f.readlines():
                 line = line[0:-1]
@@ -542,12 +559,13 @@ def log_ssh():
     print()
 
 
-def log_ftp():
+def log_pure_ftp():
     def get_contents(path):
         if not path.exists():
             return None
         with path.open() as f:
             return f.read()
+
     install_path = Path("/etc/pure-ftpd")
     if not install_path.exists():
         print("pure-ftpd must not be installed because '{}' doesn't exist".format(install_path))
@@ -561,12 +579,15 @@ def log_ftp():
         return
 
     print(config_path)
+    print("Also look at other options here: {}"
+          .format("https://github.com/jedisct1/pure-ftpd/blob/master/pure-ftpd.conf.in"))
+    print("Remember to set firewall rules!")
 
     tls_path = Path(config_path, "TLS")
     print("\t{}".format(tls_path))
     tls_contents = get_contents(tls_path)
     if not tls_contents:
-        print("\t\tCouldn't find file!")
+        print("\t\tCouldn't find file! Needs to contain '2'")
     elif "2" in tls_contents:
         print("\t\tYay! Using TLS encryption only!")
     else:
@@ -592,6 +613,73 @@ def log_ftp():
     else:
         print("\t\tAnonymous logins are allowed! Bad! NoAnonymous needs to be set to 'yes'")
 
+    prohibit_dot_files_path = Path(config_path, "ProhibitDotFilesWrite")
+    print("\t{}".format(prohibit_dot_files_path))
+    prohibit_dot_files_contents = get_contents(prohibit_dot_files_path)
+    if not prohibit_dot_files_contents:
+        print("\t\tCouldn't find file! Needs to contain 'yes'")
+    elif "yes" in prohibit_dot_files_contents:
+        print("\t\tWriting to dot files is prohibited! Yay!")
+    else:
+        print("\t\tWriting to dot files is allowed! Bad! ProhibitDotFilesWrite needs to be set to 'yes'")
+
+    daemonize_path = Path(config_path, "Daemonize")
+    print("\t{}".format(daemonize_path))
+    daemonize_contents = get_contents(daemonize_path)
+    if not daemonize_contents:
+        print("\t\tCouldn't find file! Needs to contain 'yes'")
+    elif "yes" in daemonize_contents:
+        print("\t\tRunning as a daemon! Yay!")
+    else:
+        print("\t\tNot running as a daemon! Bad! Daemonize needs to be set to 'yes'")
+
+    no_chmod_path = Path(config_path, "NoChmod")
+    print("\t{}".format(no_chmod_path))
+    no_chmod_contents = get_contents(no_chmod_path)
+    if not no_chmod_contents:
+        print("\t\tCouldn't fine file! Needs to contain 'yes'")
+    elif "yes" in no_chmod_contents:
+        print("\t\tChmod is disabled! Yay!")
+    else:
+        print("\t\tChmod is enabled! Bad! Needs to be set to 'yes'")
+
+    customer_proof_path = Path(config_path, "CustomerProof")
+    print("\t{}".format(customer_proof_path))
+    customer_proof_contents = get_contents(customer_proof_path)
+    if not customer_proof_contents:
+        print("\t\tCouldn't find file! Needs to contain 'yes'")
+    elif "yes" in customer_proof_contents:
+        print("\t\tCustomer Proof is enabled! Yay!")
+    else:
+        print("\t\tCustomer Proof is disabled! Bad! CustomerProof needs to be set to 'yes'")
+
+    print()
+
+
+def log_vsftpd():
+    path = Path("/etc/vsftpd.conf")
+    if not path.exists():
+        print("vsftpd must not be installed because {} doesn't exist.".format(path))
+        print()
+        return
+    print(path)
+    print("NOTE: This does not check for many things and is a WIP")
+    print("See also: {}".format("https://www.digitalocean.com/community/tutorials/how-to-set-up-vsftpd-for-a-user-s"
+                                "-directory-on-ubuntu-16-04"))
+    with path.open() as f:
+        for line in f.readlines():
+            if not line.startswith("#"):
+                split = line.replace(" ", "").replace("\n", "").split("=")
+                if len(split) == 2:
+                    key = split[0]
+                    value_string = split[1]
+                    if key == "anonymous_enable":
+                        if value_string == "YES":
+                            print("Anonymous is enabled! Bad!")
+                        elif value_string == "NO":
+                            print("Anonymous is disabled! Yay!")
+                        else:
+                            print("Anonymous's value is: {}. (That's not a valid value)".format(value_string))
     print()
 
 
@@ -599,6 +687,7 @@ def log_firewall(fix=False):
     """Logs if the firewall is on or not and turns it on if off and if fix is True.
 
     Works on windows and linux"""
+
     def turn_on_windows_firewall(shown_name, set_name):
         """Reference: https://helpdeskgeek.com/networking/windows-firewall-command-prompt-netsh/"""
         print("Trying to turn on {} firewall...".format(shown_name))
@@ -1008,7 +1097,8 @@ def main():
         log_firewall(fix=args.fix)
         if not is_windows():  # for linux only
             log_ssh()
-            log_ftp()
+            log_pure_ftp()
+            log_vsftpd()
             log_password_history_config(fix=args.fix)
             log_password_history_users(fix=args.fix)
             log_lockout_policy(fix=args.fix)
