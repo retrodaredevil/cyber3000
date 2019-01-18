@@ -81,7 +81,7 @@ _HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users
                      "xsser", "yara", "yersinia", "zaproxy"]
 """Many hacking tools. 
 Source: https://github.com/moomanst/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
-REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap"] + _HACKING_PACKAGES
+REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap", "samba"] + _HACKING_PACKAGES
 """Packages that the user may want to uninstall"""
 REPORT_INSTALLED_PACKAGES_SET = set(REPORT_INSTALLED_PACKAGES)
 REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
@@ -429,6 +429,10 @@ def log_ubuntu_repos():
 
     check_path = Path("/etc/apt/apt.conf.d/10periodic")
     print(check_path)
+    if not check_path.exists():
+        print("Couldn't find. Using this instead:")
+        check_path = Path("/etc/apt/apt.conf.d/20auto-upgrades")
+        print(check_path)
     if check_path.exists():
         settings_dict = {
             "Update-Package-Lists": None,
@@ -479,7 +483,7 @@ def log_ubuntu_repos():
             print("\tSet to autoclean every {} day(s)".format(autoclean_period))
 
     else:
-        print("\tCouldn't find file! Is this ubuntu?")
+        print("\tCouldn't find 10periodic or 20auto-upgrades! Is this ubuntu?")
 
     print()
 
@@ -493,8 +497,7 @@ def log_ssh():
     """
     path = Path("/etc/ssh/sshd_config")
     if not path.exists():
-        print("{} doesn't exist! ssh must not be installed! "
-              "(sudo apt-get install openssh-server)".format(path))
+        print("{} doesn't exist! ssh must not be installed!".format(path))
     else:
         with path.open() as f:
             print(path)
@@ -519,7 +522,7 @@ def log_ssh():
                               "Possibly corrupt file? line: {}".format(line))
                 elif "IgnoreRhosts" in line:
                     if "#" not in line:
-                        if "no" in line:
+                        if "no" in line.replace("IgnoreRhosts", ""):
                             print("Rhosts are not being ignored! Bad! Change to no!")
                 elif "StrictModes" in line:
                     if "#" not in line:
@@ -681,6 +684,19 @@ def log_vsftpd():
                         else:
                             print("Anonymous's value is: {}. (That's not a valid value)".format(value_string))
     print()
+
+
+def log_samba():
+    path = Path("etc/samba/smb.conf")
+    if not path.exists():
+        print("samba must not be installed because {} doesn't exist".format(path))
+        print()
+        return
+
+    print(path)
+    print("\tIt looks like you have samba installed! Good luck on configuring it!")
+    print("\tTry this link: https://www.dummies.com/programming/networking/network-administration-samba-smb-conf-file/")
+    print("\tAlso make sure to back up the file before configuring it!")
 
 
 def log_firewall(fix=False):
@@ -964,8 +980,8 @@ def log_password_policy():
                 else:
                     print("\tYou need to enforce a symbol with ocredit=-1")
             else:
-                print("Line with pam_cracklib.so not found! "
-                      "Remember (sudo apt install libpam-cracklib)")
+                print("Line with pam_cracklib.so not found! Remember (sudo apt install libpam-cracklib) "
+                      "Also, say yes if it asks to override a file in /etc/pam.d")
     print()
 
 
@@ -1099,6 +1115,7 @@ def main():
             log_ssh()
             log_pure_ftp()
             log_vsftpd()
+            log_samba()
             log_password_history_config(fix=args.fix)
             log_password_history_users(fix=args.fix)
             log_lockout_policy(fix=args.fix)
