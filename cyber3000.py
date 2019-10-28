@@ -508,7 +508,7 @@ def log_ssh():
                 if "PermitRootLogin" in line:
                     found_root_login_line = True
                     if "#" in line:
-                        print("found comment referencing PermitRootLogin. line: '{}'".format(line))
+                        print("found COMMENT referencing PermitRootLogin. line: '{}'".format(line))
                     elif "yes" in line:
                         print("found line permitting root login! Bad! line: '{}'".format(line))
                     elif "no" in line:
@@ -543,7 +543,9 @@ def log_ssh():
                 elif "RSAAuthentication" in line:
                     if "#" not in line:
                         if "no" in line:
-                            print("RSAAuthenitcation is disabled! Enable for better security!")
+                            print("RSAAuthentication is disabled! Enable for better security! line: {}".format(line))
+                        elif "yes" in line:
+                            print("RSAAuthentication is enabled! Yay!")
                 elif "PasswordAuthentication" in line:
                     if "#" not in line:
                         if "no" in line:
