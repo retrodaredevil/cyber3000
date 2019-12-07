@@ -81,10 +81,10 @@ _HACKING_PACKAGES = ["airbase-ng", "acccheck", "ace-voip", "amap", "apache-users
                      "xsser", "yara", "yersinia", "zaproxy"]
 """Many hacking tools. 
 Source: https://github.com/moomanst/CBHelper/blob/master/Linux/Ubuntu/CyberPatriotBasics.sh"""
-REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap", "samba"] + _HACKING_PACKAGES
+REPORT_INSTALLED_PACKAGES = ["kismet", "ophcrack", "apache", "nmap", "zenmap", "samba", "postgresql", "postgresql-contrib", "nginx", "proftpd"] + _HACKING_PACKAGES
 """Packages that the user may want to uninstall"""
 REPORT_INSTALLED_PACKAGES_SET = set(REPORT_INSTALLED_PACKAGES)
-REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark"]
+REPORT_INSTALLED_PACKAGES_CONTAINS = ["freeciv", "wireshark", "cyphesis"]
 """Names contained in packages that the user may want to uninstall"""
 REPORT_FILE_EXTENSIONS = ["mp3", "mov", "ogg", "mp4", "m4a", "avi", "flac", "flv", "mpeg", "mpg",
                           "gif", "png", "jpg", "jpeg"]
@@ -689,7 +689,7 @@ def log_vsftpd():
 
 
 def log_samba():
-    path = Path("etc/samba/smb.conf")
+    path = Path("/etc/samba/smb.conf")
     if not path.exists():
         print("samba must not be installed because {} doesn't exist".format(path))
         print()

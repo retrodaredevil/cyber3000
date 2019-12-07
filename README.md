@@ -28,3 +28,8 @@ https://websiteforstudents.com/how-to-use-the-passwd-command-on-ubuntu-16-04-18-
 https://programtalk.com/python-examples/win32netcon.UF_DONT_EXPIRE_PASSWD/
 
 https://programtalk.com/vs2/python/13102/winsys/winsys/accounts.py/
+
+
+### To add:
+For proftp:
+* https://www.liberiangeek.net/2015/02/install-manage-secure-proftpd-server-ubuntu-14-10/
