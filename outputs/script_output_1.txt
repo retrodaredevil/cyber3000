@@ -1,0 +1,72 @@
+/etc/lightdm/lightdm.conf
+Guest account is explicitly disabled! Yay!
+Auto login explicitly stated! Probably okay.
+
+The root account has been locked! Yay!
+
+Checking for users that don't require passwords...
+User: root does not require a password! Bad!
+User: libuuid does not require a password! Bad!
+User: speech-dispatcher does not require a password! Bad!
+User: clamav does not require a password! Bad!
+
+Firewall is on! Yay!
+
+/etc/ssh/sshd_config
+Also remember to set firewall rules!
+found line disallowing root login! Good! line: 'PermitRootLogin no'
+RSAAuthenitcation is disabled! Enable for better security!
+found comment referencing PermitRootLogin. line: '# the setting of "PermitRootLogin without-password".'
+
+pure-ftpd must not be installed because '/etc/pure-ftpd' doesn't exist
+
+vsftpd must not be installed because /etc/vsftpd.conf doesn't exist.
+
+samba must not be installed because etc/samba/smb.conf doesn't exist
+
+/etc/login.defs
+NOTE: These PASS_MAX* settings only apply to new users
+Max days is correct.
+Min days is correct.
+Password warn age is correct.
+
+Checking users incorrect max/min/warn password ages (Not usually scored) (Not important)
+ace has maximum password age of 99999. Should be 90.
+ace has minimum password age of 0. Should be 10.
+Run with --fix to fix
+
+/etc/pam.d/common-auth
+Account policy line found: 'auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800
+'
+It should have the same values as: 'auth required pam_tally2.so deny=5 onerr=fail unlock_time=1800'
+
+/etc/pam.d/common-password
+On line with pam_unix.so...
+	Yay! We're enforcing a password history!
+	Yay! We're enforcing a min length!
+On line with pam_cracklib.so...
+	Yay! You're enforcing uppercase!
+	Yay! You're enforcing lowercase!
+	Yay! You're enforcing a number!
+	Yay! You're enforcing a symbol!
+
+All users have the correct home directory permission. (from chmod 0750 <dir>)
+
+Don't edit these files directly. Go to Software and Updates.
+/etc/apt/sources.list
+	Security updates are enabled! Yay!
+	Recommended updates are enabled! Yay!
+	Unsupported updates are disabled! Yay!
+/etc/apt/apt.conf.d/10periodic
+	Automatically checking for updates daily! Yay!
+	Set to download upgradeable packages every 1 day(s)
+	Set to install packages every 1 day(s) (May need unattended-upgrades)
+	Set to autoclean every 7 day(s)
+
+ - Package apache2 NOT installed
++  Package auditd IS installed
++  Package clamav IS installed
++  Package openssh-server IS installed
+ - Package pure-ftpd NOT installed
++  Package unattended-upgrades IS installed
+ - Package vsftpd NOT installed
